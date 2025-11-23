@@ -95,6 +95,7 @@ export function LoginForm() {
             {loading ? 'Logging in...' : 'Login'}
           </Button>
         </form>
+        {/*
         <div className="mt-4">
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -119,7 +120,7 @@ export function LoginForm() {
           <a href="/signup" className="text-primary hover:underline">
             Sign up
           </a>
-        </p>
+        </p> */}
       </CardContent>
     </Card>
   )
