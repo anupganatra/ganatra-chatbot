@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     TOP_K: int = 5
     
     # CORS
-    CORS_ORIGINS: str = "http://localhost:3000"
+    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
     
     # File Upload
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
@@ -41,11 +41,6 @@ class Settings(BaseSettings):
     APP_NAME: str = "AI Chatbot API"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
-    
-    @property
-    def cors_origins_list(self) -> List[str]:
-        """Parse CORS origins from comma-separated string."""
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
     
     class Config:
         env_file = ".env"
