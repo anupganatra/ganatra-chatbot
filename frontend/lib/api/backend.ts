@@ -141,3 +141,19 @@ export async function getAdminStats() {
   return response.json()
 }
 
+export async function getAdminDocuments(offset = 0, limit = 100) {
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(`${BACKEND_URL}/admin/documents?offset=${offset}&limit=${limit}`, {
+    method: 'GET',
+    headers,
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get documents')
+  }
+
+  return response.json()
+}
+

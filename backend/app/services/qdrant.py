@@ -38,6 +38,21 @@ class QdrantService:
                         distance=Distance.COSINE
                     )
                 )
+            # Ensure there's a payload index on `document_id` to allow filtered operations
+            try:
+                # Attempt to create a payload index for `document_id` as a keyword
+                # This operation is idempotent on recent qdrant-client versions; if the
+                # index already exists the server may return an error which we ignore.
+                self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="document_id",
+                    field_schema="keyword",
+                    wait=True,
+                )
+            except Exception:
+                # Don't raise here — lack of index will be surfaced during operations,
+                # but best-effort create above improves behavior for new deployments.
+                pass
         except Exception as e:
             print(f"Error ensuring collection exists: {e}")
     
@@ -161,7 +176,8 @@ class QdrantService:
             Number of points deleted
         """
         try:
-            # First, get all points for this document
+            # First, get all points for this document. `scroll` may return different
+            # shapes depending on client version/transport (tuple, object with `.points`, etc.)
             scroll_result = self.client.scroll(
                 collection_name=self.collection_name,
                 scroll_filter=Filter(
@@ -174,18 +190,48 @@ class QdrantService:
                 ),
                 limit=10000  # Adjust based on your needs
             )
-            
-            if scroll_result[0]:
-                point_ids = [point.id for point in scroll_result[0]]
-                self.client.delete(
-                    collection_name=self.collection_name,
-                    points_selector=point_ids
-                )
-                return len(point_ids)
-            
-            return 0
-        
+
+            # Normalize returned points list
+            points_list = []
+            if isinstance(scroll_result, tuple) or isinstance(scroll_result, list):
+                # older client: (points, next_page_position)
+                if len(scroll_result) > 0 and scroll_result[0]:
+                    points_list = scroll_result[0]
+            elif hasattr(scroll_result, "points"):
+                points_list = scroll_result.points or []
+            elif isinstance(scroll_result, dict) and "points" in scroll_result:
+                points_list = scroll_result.get("points", [])
+
+            if not points_list:
+                return 0
+
+            # Extract ids (points may be objects or dicts)
+            point_ids = []
+            for p in points_list:
+                pid = None
+                if hasattr(p, "id"):
+                    pid = p.id
+                elif isinstance(p, dict):
+                    pid = p.get("id") or p.get("point_id")
+                if pid is not None:
+                    point_ids.append(pid)
+
+            if not point_ids:
+                return 0
+
+            # Delete by ids
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=point_ids
+            )
+
+            return len(point_ids)
+
         except Exception as e:
+            # If the server complains about missing payload index, provide actionable message
+            msg = str(e)
+            if "Index required" in msg or "index required" in msg.lower() or "Index required" in getattr(e, 'message', ''):
+                raise ValueError("Error deleting document: missing payload index for 'document_id' in Qdrant. Create a payload index for 'document_id' (keyword/uuid) or enable automatic index creation.")
             raise ValueError(f"Error deleting document: {str(e)}")
     
     def get_collection_info(self) -> Dict:

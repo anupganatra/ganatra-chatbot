@@ -3,6 +3,7 @@ export interface DocumentInfo {
   filename: string
   uploaded_at: string
   chunks_count: number
+  page_count?: number
   file_size: number
   status: string
 }

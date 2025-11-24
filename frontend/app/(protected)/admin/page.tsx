@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { DocumentUpload } from '@/components/admin/document-upload'
+import DocumentList from '@/components/admin/document-list'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft } from 'lucide-react'
@@ -51,7 +52,10 @@ export default function AdminPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <DocumentUpload />
+              <div className="space-y-6">
+                <DocumentUpload />
+                <DocumentList />
+              </div>
             </CardContent>
           </Card>
         </div>

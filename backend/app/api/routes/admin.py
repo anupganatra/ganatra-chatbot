@@ -1,10 +1,11 @@
 """Admin-only API routes."""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from app.models.user import User
 from app.api.dependencies import get_current_admin_user
 from app.services.qdrant import qdrant_service
+from app.services.supabase_client import supabase_client
 from app.middleware.rate_limit import limiter
-from typing import Dict
+from typing import Dict, List, Any
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 @router.get("/stats")
 @limiter.limit("30/minute")
 async def get_stats(
-    request,
+    request: Request,
     current_user: User = Depends(get_current_admin_user)
 ) -> Dict:
     """
@@ -44,7 +45,7 @@ async def get_stats(
 @router.post("/rebuild-index")
 @limiter.limit("5/minute")
 async def rebuild_index(
-    request,
+    request: Request,
     current_user: User = Depends(get_current_admin_user)
 ) -> Dict:
     """
@@ -72,6 +73,27 @@ async def rebuild_index(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error rebuilding index: {str(e)}"
+        )
+
+
+@router.get("/documents")
+@limiter.limit("30/minute")
+async def get_documents(
+    request: Request,
+    current_user: User = Depends(get_current_admin_user),
+    offset: int = 0,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """
+    Return list of documents stored in Supabase metadata table (admin only).
+    """
+    try:
+        docs = supabase_client.list_documents(offset=offset, limit=limit)
+        return docs
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing documents: {str(e)}"
         )
 
 

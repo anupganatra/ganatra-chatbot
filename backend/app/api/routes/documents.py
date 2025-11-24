@@ -1,10 +1,12 @@
 """Document management API routes."""
+import time
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request
 from app.models.document import DocumentUploadResponse, DocumentDeleteResponse
 from app.models.user import User
 from app.api.dependencies import get_current_admin_user
 from app.services.qdrant import qdrant_service
 from app.services.embeddings import embedding_service
+from app.services.supabase_client import supabase_client
 from app.utils.pdf_processor import extract_text_from_pdf, validate_pdf_file
 from app.utils.chunking import chunk_text_with_metadata
 from app.middleware.rate_limit import limiter
@@ -34,26 +36,46 @@ async def upload_document(
         DocumentUploadResponse with upload status
     """
     try:
+        start_time = time.time()
+        
         # Read file
         file_bytes = await file.read()
-        
+        print(f"⏱️  File read: {time.time() - start_time:.2f}s ({len(file_bytes) / 1024:.1f} KB)")
+
         # Validate file
         validate_pdf_file(file_bytes, file.filename)
+        print(f"⏱️  Validation: {time.time() - start_time:.2f}s")
         
         # Generate document ID
         document_id = str(uuid.uuid4())
         
         # Extract text from PDF
+        extraction_start = time.time()
         text, page_count = extract_text_from_pdf(file_bytes)
+        print(f"⏱️  PDF extraction: {time.time() - extraction_start:.2f}s ({page_count} pages)")
         
         # Chunk text
-        chunks = chunk_text_with_metadata(
-            text=text,
-            document_id=document_id,
-            filename=file.filename,
-            chunk_size=settings.CHUNK_SIZE,
-            chunk_overlap=settings.CHUNK_OVERLAP
-        )
+        chunking_start = time.time()
+        print(f"📝 Text extracted: {len(text)} characters")
+
+        if len(text) > 50000:  # If text is unexpectedly huge
+            print(f"⚠️ Warning: Very large text extracted ({len(text)} chars)")
+            
+        try:
+            chunks = chunk_text_with_metadata(
+                text=text,
+                document_id=document_id,
+                filename=file.filename,
+                chunk_size=settings.CHUNK_SIZE,
+                chunk_overlap=settings.CHUNK_OVERLAP
+            )
+            print(f"⏱️  Chunking: {time.time() - chunking_start:.2f}s ({len(chunks)} chunks created)")
+        except Exception as e:
+            print(f"❌ Chunking error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error during text chunking: {str(e)}"
+            )
         
         if not chunks:
             raise HTTPException(
@@ -62,16 +84,73 @@ async def upload_document(
             )
         
         # Generate embeddings
+        embedding_start = time.time()
         texts = [chunk["text"] for chunk in chunks]
-        embeddings = embedding_service.generate_embeddings_batch(texts)
-        
+        print(f"🔄 Generating embeddings for {len(texts)} chunks...")
+
+        try:
+            embeddings = embedding_service.generate_embeddings_batch(texts)
+            embedding_time = time.time() - embedding_start
+            print(f"⏱️  Embeddings: {embedding_time:.2f}s ({len(embeddings)} embeddings, {len(embeddings)/embedding_time:.1f} emb/sec)")
+        except Exception as e:
+            print(f"❌ Embedding error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error generating embeddings: {str(e)}"
+            )
+
         # Store in Qdrant
-        chunks_created = qdrant_service.upsert_chunks(
-            chunks=chunks,
-            embeddings=embeddings,
-            document_id=document_id
-        )
-        
+        qdrant_start = time.time()
+        print(f"💾 Storing {len(chunks)} chunks in Qdrant...")
+
+        try:
+            chunks_created = qdrant_service.upsert_chunks(
+                chunks=chunks,
+                embeddings=embeddings,
+                document_id=document_id
+            )
+            print(f"⏱️  Qdrant upsert: {time.time() - qdrant_start:.2f}s ({chunks_created} chunks)")
+        except Exception as e:
+            print(f"❌ Qdrant error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error storing in Qdrant: {str(e)}"
+            )
+
+        # Persist metadata in Supabase. If this fails, attempt to roll back Qdrant inserts.
+        supabase_start = time.time()
+        try:
+            supabase_client.insert_document_metadata(
+                document_id=document_id,
+                filename=file.filename,
+                uploader_id=current_user.id if hasattr(current_user, 'id') else None,
+                chunks_count=chunks_created,
+                page_count=page_count,
+                file_size=len(file_bytes),
+                status="active"
+            )
+            print(f"⏱️  Supabase insert: {time.time() - supabase_start:.2f}s")
+        except Exception as e:
+            # Compensating rollback: try to delete the points we just added to Qdrant.
+            try:
+                qdrant_service.delete_document(document_id)
+            except Exception:
+                # Don't expose internal Qdrant errors to the client; log and surface a concise message.
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=("Failed to persist document metadata; attempted to roll back Qdrant inserts, "
+                            "but rollback may have failed. Check server logs for details.")
+                )
+
+            # If rollback succeeded, inform the client that metadata persistence failed.
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to persist document metadata: {str(e)}. Qdrant changes rolled back."
+            )
+
+        total_time = time.time() - start_time
+        print(f"✅ Total upload time: {total_time:.2f}s")
+
         return DocumentUploadResponse(
             document_id=document_id,
             filename=file.filename,
@@ -85,6 +164,9 @@ async def upload_document(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions without modification
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -112,7 +194,16 @@ async def delete_document(
     """
     try:
         chunks_deleted = qdrant_service.delete_document(document_id)
-        
+
+        # Delete metadata row in Supabase
+        try:
+            supabase_client.delete_metadata(document_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=(f"Document chunks deleted ({chunks_deleted}) but failed to delete metadata: {str(e)}")
+            )
+
         return DocumentDeleteResponse(
             document_id=document_id,
             message="Document deleted successfully",

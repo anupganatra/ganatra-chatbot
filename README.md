@@ -112,7 +112,7 @@ Frontend will be available at `http://localhost:3000`
 ```env
 # Supabase
 SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_service_key
+SUPABASE_SERVICE_KEY=your_supabase_service_key
 
 # Qdrant
 QDRANT_URL=your_qdrant_cloud_url

@@ -3,14 +3,13 @@ from typing import Optional
 from supabase import create_client, Client
 from app.config import settings
 from app.models.user import User, TokenData
-import jwt
 
 
 class AuthService:
     """Service for handling authentication with Supabase."""
     
     def __init__(self):
-        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        self.supabase: Client = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
     
     def verify_token(self, token: str) -> Optional[TokenData]:
         """

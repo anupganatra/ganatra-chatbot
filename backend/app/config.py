@@ -1,5 +1,4 @@
 """Configuration settings for the application."""
-import os
 from typing import List
 from pydantic_settings import BaseSettings
 
@@ -9,7 +8,7 @@ class Settings(BaseSettings):
     
     # Supabase
     SUPABASE_URL: str
-    SUPABASE_KEY: str
+    SUPABASE_SERVICE_KEY: str
     
     # Qdrant
     QDRANT_URL: str
