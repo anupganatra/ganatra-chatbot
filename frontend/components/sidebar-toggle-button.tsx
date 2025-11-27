@@ -29,7 +29,7 @@ export function SidebarToggleButton({ className }: SidebarToggleButtonProps) {
           </Button>
         </TooltipTrigger>
         <TooltipContent side="right">
-          {isOpen ? "Close sidebar" : "Open sidebar"} <kbd className="ml-1 text-xs opacity-60">Ctrl+.</kbd>
+          {isOpen ? "Close sidebar" : "Open sidebar"}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

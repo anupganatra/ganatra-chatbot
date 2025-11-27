@@ -7,8 +7,8 @@ import { ReactQueryProvider } from "./providers"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "AI Chatbot",
-  description: "AI Chatbot with RAG pipeline",
+  title: "Ganatra Chatbot",
+  description: "Your AI partner for faster, smarter problem-solving",
   icons: {
     icon: "/icon.svg",
   },

@@ -13,7 +13,7 @@ from app.middleware.rate_limit import limiter
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="AI Chatbot API with RAG pipeline"
+    description="Your AI partner for faster, smarter problem-solving"
 )
 
 # Configure CORS

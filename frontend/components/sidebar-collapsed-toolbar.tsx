@@ -29,6 +29,7 @@ export function SidebarCollapsedToolbar() {
 
   const userInitial = user?.email?.charAt(0).toUpperCase() || "A"
   const userEmail = user?.email || "demo@example.com"
+  const isAdmin = user?.role === "admin"
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -46,7 +47,12 @@ export function SidebarCollapsedToolbar() {
         <div className="mt-4 flex flex-col items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg text-primary hover:bg-primary/10">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="h-10 w-10 rounded-lg text-primary hover:bg-primary/10"
+                onClick={() => router.push("/chat")}
+              >
                 <Plus className="h-5 w-5" />
               </Button>
             </TooltipTrigger>
@@ -98,12 +104,11 @@ export function SidebarCollapsedToolbar() {
             <DropdownMenuItem onClick={() => router.push("/settings")}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
-              <span className="ml-auto text-xs text-muted-foreground">⌘+,</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/admin")}>
+            {isAdmin && (<DropdownMenuItem onClick={() => router.push("/admin")}>
               <ShieldCheck className="mr-2 h-4 w-4" />
               Admin
-            </DropdownMenuItem>
+            </DropdownMenuItem>)}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />

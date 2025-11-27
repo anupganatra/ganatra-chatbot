@@ -1,15 +1,17 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
 import { useChat } from "@/hooks/use-chat"
 import { ChatWindow } from "@/components/chat/chat-window"
 
 export default function ChatPage() {
   const { user, loading } = useAuth()
-  const { messages, loading: chatLoading, sendMessage } = useChat()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const conversationId = searchParams.get("conversation_id") || undefined
+  const { messages, loading: chatLoading, sendMessage } = useChat(conversationId)
 
   useEffect(() => {
     if (!loading && !user) {

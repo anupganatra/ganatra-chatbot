@@ -39,6 +39,7 @@ export async function sendChatMessageStream(
   request: ChatRequest,
   onChunk: (chunk: string) => void
 ): Promise<void> {
+  let hasReceivedContent = false
   const headers = await getAuthHeaders()
   
   const response = await fetch(`${BACKEND_URL}/chat/stream`, {
@@ -59,25 +60,50 @@ export async function sendChatMessageStream(
     throw new Error('No response body')
   }
 
+  let buffer = ''
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
 
-    const chunk = decoder.decode(value)
-    const lines = chunk.split('\n')
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() || '' // Keep incomplete line in buffer
 
     for (const line of lines) {
       if (line.startsWith('data: ')) {
         try {
           const data = JSON.parse(line.slice(6))
-          if (data.content) {
+          if (data.content !== undefined) {
             onChunk(data.content)
+            if (data.content) {
+              hasReceivedContent = true
+            }
           }
         } catch (e) {
           // Ignore parse errors
         }
       }
     }
+  }
+  
+  // Process any remaining buffer
+  if (buffer.trim() && buffer.startsWith('data: ')) {
+    try {
+      const data = JSON.parse(buffer.slice(6))
+      if (data.content !== undefined) {
+        onChunk(data.content)
+        if (data.content) {
+          hasReceivedContent = true
+        }
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }
+  
+  // If no content was received, there might be an issue
+  if (!hasReceivedContent) {
+    console.warn('Stream completed but no content was received')
   }
 }
 
