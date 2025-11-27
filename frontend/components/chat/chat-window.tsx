@@ -1,59 +1,73 @@
-'use client'
+"use client"
 
-import { useEffect, useRef } from 'react'
-import { ChatMessage } from './chat-message'
-import { ChatInput } from './chat-input'
-import { ChatMessage as ChatMessageType } from '@/types/chat'
-import { Card } from '@/components/ui/card'
+import { useEffect, useRef } from "react"
+import { ChatMessage } from "./chat-message"
+import { ChatInput } from "./chat-input"
+import { GreetingHeader } from "./greeting-header"
+import type { ChatMessage as ChatMessageType } from "@/types/chat"
 
 interface ChatWindowProps {
   messages: ChatMessageType[]
   onSend: (message: string) => void
   loading?: boolean
+  userName?: string // added userName prop for greeting
 }
 
-export function ChatWindow({ messages, onSend, loading }: ChatWindowProps) {
+export function ChatWindow({ messages, onSend, loading, userName }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
 
+  const hasMessages = messages.length > 0
+
   return (
-    <Card className="flex flex-col h-[600px]">
-      <div className="flex-1 overflow-y-auto p-4">
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <p>Start a conversation by sending a message</p>
-          </div>
-        ) : (
-          <>
+    <div className="flex flex-col flex-1 gap-4">
+      {hasMessages ? (
+        <>
+          <div className="flex-1 overflow-y-auto space-y-4 pt-4">
             {messages.map((message, idx) => (
               <ChatMessage key={idx} message={message} />
             ))}
             {loading && (
-              <div className="flex justify-start mb-4">
-                <Card className="bg-muted max-w-[80%]">
-                  <div className="p-4">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </div>
+              <div className="flex justify-start">
+                <div className="bg-muted rounded-2xl px-4 py-3">
+                  <div className="flex gap-1">
+                    <div
+                      className="w-2 h-2 bg-foreground/50 rounded-full animate-bounce"
+                      style={{ animationDelay: "0ms" }}
+                    />
+                    <div
+                      className="w-2 h-2 bg-foreground/50 rounded-full animate-bounce"
+                      style={{ animationDelay: "150ms" }}
+                    />
+                    <div
+                      className="w-2 h-2 bg-foreground/50 rounded-full animate-bounce"
+                      style={{ animationDelay: "300ms" }}
+                    />
                   </div>
-                </Card>
+                </div>
               </div>
             )}
             <div ref={messagesEndRef} />
-          </>
-        )}
-      </div>
-      <ChatInput onSend={onSend} disabled={loading} />
-    </Card>
+          </div>
+          <div className="pb-4">
+            <ChatInput onSend={onSend} disabled={loading} />
+          </div>
+        </>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <GreetingHeader userName={userName} />
+          <div className="w-full max-w-2xl px-4">
+            <ChatInput onSend={onSend} disabled={loading} />
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
-

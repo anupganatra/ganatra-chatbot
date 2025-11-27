@@ -1,13 +1,17 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
-import { ReactQueryProvider } from './providers'
+import type React from "react"
+import type { Metadata } from "next"
+import { Inter } from "next/font/google"
+import "./globals.css"
+import { ReactQueryProvider } from "./providers"
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: 'AI Chatbot',
-  description: 'AI Chatbot with RAG pipeline',
+  title: "AI Chatbot",
+  description: "AI Chatbot with RAG pipeline",
+  icons: {
+    icon: "/icon.svg",
+  },
 }
 
 export default function RootLayout({
@@ -18,11 +22,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <ReactQueryProvider>
-          {children}
-        </ReactQueryProvider>
+        <ReactQueryProvider>{children}</ReactQueryProvider>
       </body>
     </html>
   )
 }
-
