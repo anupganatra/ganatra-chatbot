@@ -1,6 +1,7 @@
 "use client"
 
-import { Plus, MessageSquare, Settings, LogOut, ShieldCheck } from "lucide-react"
+import { useState } from "react"
+import { Plus, MessageSquare, Settings, LogOut, ShieldCheck, HelpCircle } from "lucide-react"
 import { useSidebar } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -14,12 +15,13 @@ import {
 import { SidebarToggleButton } from "./sidebar-toggle-button"
 import { useAuth } from "@/hooks/use-auth"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { ReportBugDialog } from "./help/report-bug-dialog"
 
 export function SidebarCollapsedToolbar() {
   const { state, isMobile, openMobile } = useSidebar()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const router = useRouter()
+  const [reportBugOpen, setReportBugOpen] = useState(false)
 
   // Only show when sidebar is collapsed (not on mobile)
   const isCollapsed = !isMobile && state === "collapsed"
@@ -32,11 +34,11 @@ export function SidebarCollapsedToolbar() {
   const isAdmin = user?.role === "admin"
 
   const handleSignOut = async () => {
-    const supabase = createClient()
-    if (supabase) {
-      await supabase.auth.signOut()
-    }
-    router.push("/login")
+    await signOut()
+  }
+
+  const handleSettings = () => {
+    router.push("/settings")
   }
 
   return (
@@ -47,9 +49,9 @@ export function SidebarCollapsedToolbar() {
         <div className="mt-4 flex flex-col items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="h-10 w-10 rounded-lg text-primary hover:bg-primary/10"
                 onClick={() => router.push("/chat")}
               >
@@ -71,17 +73,6 @@ export function SidebarCollapsedToolbar() {
             </TooltipTrigger>
             <TooltipContent side="right">Chats</TooltipContent>
           </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 rounded-lg text-muted-foreground hover:bg-accent"
-              >
-              </Button>
-            </TooltipTrigger>
-          </Tooltip>
         </div>
 
         <div className="flex-1" />
@@ -101,15 +92,21 @@ export function SidebarCollapsedToolbar() {
               <p className="text-sm font-medium truncate">{userEmail}</p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/settings")}>
+            <DropdownMenuItem onClick={handleSettings}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
-            {isAdmin && (<DropdownMenuItem onClick={() => router.push("/admin")}>
-              <ShieldCheck className="mr-2 h-4 w-4" />
-              Admin
-            </DropdownMenuItem>)}
+            {isAdmin && (
+              <DropdownMenuItem onClick={() => router.push("/admin")}>
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Admin
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => setReportBugOpen(true)}>
+              <HelpCircle className="mr-2 h-4 w-4" />
+              Help
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />
               Log out
@@ -117,6 +114,8 @@ export function SidebarCollapsedToolbar() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <ReportBugDialog open={reportBugOpen} onOpenChange={setReportBugOpen} />
     </TooltipProvider>
   )
 }

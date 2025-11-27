@@ -22,7 +22,10 @@ export default function ChatPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Loading...</p>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
       </div>
     )
   }
@@ -34,7 +37,12 @@ export default function ChatPage() {
   return (
     <div className="flex-1 flex flex-col">
       <main className="flex-1 container mx-auto px-4 max-w-3xl flex flex-col">
-        <ChatWindow messages={messages} onSend={sendMessage} loading={chatLoading} userName={user.email || undefined} />
+        <ChatWindow
+          messages={messages}
+          onSend={sendMessage}
+          loading={chatLoading}
+          userName={user?.fullName || user?.email || undefined}
+        />
       </main>
     </div>
   )
