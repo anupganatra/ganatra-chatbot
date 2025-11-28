@@ -67,6 +67,7 @@ export function SidebarCollapsedToolbar() {
                 variant="ghost"
                 size="icon"
                 className="h-10 w-10 rounded-lg text-muted-foreground hover:bg-accent"
+                onClick={() => router.push("/chats")}
               >
                 <MessageSquare className="h-5 w-5" />
               </Button>

@@ -252,9 +252,15 @@ export function AppSidebar() {
       refreshConversations()
     }
 
+    const handleConversationDeleted = () => {
+      refreshConversations()
+    }
+
     window.addEventListener("conversation-created", handleConversationCreated)
+    window.addEventListener("conversation-deleted", handleConversationDeleted)
     return () => {
       window.removeEventListener("conversation-created", handleConversationCreated)
+      window.removeEventListener("conversation-deleted", handleConversationDeleted)
     }
   }, [refreshConversations])
 
@@ -274,6 +280,10 @@ export function AppSidebar() {
 
   const handleNewChat = () => {
     router.push("/chat")
+  }
+
+  const handleChatsClick = () => {
+    router.push("/chats")
   }
 
   const handleConversationSelect = (conversationId: string) => {
@@ -314,7 +324,7 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton className="w-full justify-start gap-3 py-2">
+              <SidebarMenuButton className="w-full justify-start gap-3 py-2" onClick={handleChatsClick}>
                 <MessageSquare className="h-5 w-5" />
                 <span>Chats</span>
               </SidebarMenuButton>
