@@ -24,15 +24,22 @@ async def get_stats(
         current_user: Current authenticated admin user
     
     Returns:
-        Dictionary with system statistics
+        Dictionary with system statistics including document counts and storage
     """
     try:
         collection_info = qdrant_service.get_collection_info()
         
+        # Get document statistics from Supabase
+        docs = supabase_client.list_documents(offset=0, limit=10000)
+        total_documents = len(docs)
+        total_storage_bytes = sum(doc.get('file_size', 0) or 0 for doc in docs)
+        
         return {
             "collection_name": collection_info["name"],
             "total_chunks": collection_info["points_count"],
-            "vectors_count": collection_info["vectors_count"]
+            "vectors_count": collection_info["vectors_count"],
+            "total_documents": total_documents,
+            "total_storage_bytes": total_storage_bytes
         }
     
     except Exception as e:

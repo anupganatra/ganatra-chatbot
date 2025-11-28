@@ -1,4 +1,5 @@
 """Embedding generation service using Gemini."""
+import time
 import google.generativeai as genai
 from typing import List
 from app.config import settings
@@ -48,13 +49,19 @@ class EmbeddingService:
             embeddings.append(embedding)
         return embeddings
 
-    def generate_embeddings_batch(self, texts: List[str], batch_size: int = 100) -> List[List[float]]:
+    def generate_embeddings_batch(
+        self, 
+        texts: List[str], 
+        batch_size: int = 10,
+        delay_seconds: float = 7.0
+    ) -> List[List[float]]:
         """
-        Generate embeddings for multiple texts in true batches.
+        Generate embeddings for multiple texts in true batches with rate limiting.
         
         Args:
             texts: List of texts to embed
-            batch_size: Number of texts to embed in a single API call
+            batch_size: Number of texts to embed in a single API call (default 20 for free tier)
+            delay_seconds: Delay between batches to avoid rate limits (default 2 seconds)
         
         Returns:
             List of embeddings
@@ -63,12 +70,20 @@ class EmbeddingService:
             return []
         
         all_embeddings = []
+        total_batches = (len(texts) + batch_size - 1) // batch_size
         
         # Process in batches to handle API limits
-        for i in range(0, len(texts), batch_size):
+        for batch_num, i in enumerate(range(0, len(texts), batch_size)):
             batch = texts[i:i + batch_size]
             
+            # Add delay between batches to avoid rate limits (skip first batch)
+            if batch_num > 0:
+                print(f"   ⏳ Rate limit delay: waiting {delay_seconds}s before batch {batch_num + 1}/{total_batches}...")
+                time.sleep(delay_seconds)
+            
             try:
+                print(f"   📦 Processing batch {batch_num + 1}/{total_batches} ({len(batch)} chunks)...")
+                
                 # Single API call for entire batch
                 result = genai.embed_content(
                     model=settings.GEMINI_EMBEDDING_MODEL,
@@ -83,9 +98,11 @@ class EmbeddingService:
                 else:
                     # Single embedding returned (shouldn't happen with batch)
                     all_embeddings.append(result['embedding'])
+                
+                print(f"   ✅ Batch {batch_num + 1}/{total_batches} complete ({len(all_embeddings)}/{len(texts)} total)")
                     
             except Exception as e:
-                raise ValueError(f"Error generating embeddings for batch: {str(e)}")
+                raise ValueError(f"Error generating embeddings for batch {batch_num + 1}: {str(e)}")
         
         return all_embeddings
 

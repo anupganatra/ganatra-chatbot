@@ -243,10 +243,16 @@ class QdrantService:
         """
         try:
             collection_info = self.client.get_collection(self.collection_name)
+            # Handle different Qdrant client versions - some have vectors_count, some have indexed_vectors_count
+            vectors_count = getattr(collection_info, 'vectors_count', None)
+            if vectors_count is None:
+                vectors_count = getattr(collection_info, 'indexed_vectors_count', 0)
+            points_count = getattr(collection_info, 'points_count', 0)
+            
             return {
-                "name": collection_info.name,
-                "points_count": collection_info.points_count,
-                "vectors_count": collection_info.vectors_count
+                "name": self.collection_name,
+                "points_count": points_count,
+                "vectors_count": vectors_count
             }
         except Exception as e:
             raise ValueError(f"Error getting collection info: {str(e)}")
