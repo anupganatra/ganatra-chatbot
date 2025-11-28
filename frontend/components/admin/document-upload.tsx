@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, type ChangeEvent, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Upload, File, X } from "lucide-react"
+import { Upload, File, X, Loader2 } from "lucide-react"
 import { useDocuments } from "@/hooks/use-documents"
 
 export function DocumentUpload() {
@@ -97,11 +97,38 @@ export function DocumentUpload() {
         </div>
       )}
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && (
+        <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20 max-h-32 overflow-y-auto">
+          <p className="text-sm text-destructive break-words whitespace-pre-wrap">{error}</p>
+        </div>
+      )}
+
+      {uploading && (
+        <div className="flex flex-col items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span className="text-sm font-medium">Processing document...</span>
+          </div>
+          <p className="text-xs text-muted-foreground text-center">
+            Large files may take several minutes to process.
+            <br />
+            Please don&apos;t close this page.
+          </p>
+        </div>
+      )}
 
       <Button onClick={handleUpload} disabled={!file || uploading} className="w-full">
-        <Upload className="mr-2 h-4 w-4" />
-        {uploading ? "Uploading..." : "Upload Document"}
+        {uploading ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Uploading...
+          </>
+        ) : (
+          <>
+            <Upload className="mr-2 h-4 w-4" />
+            Upload Document
+          </>
+        )}
       </Button>
     </div>
   )

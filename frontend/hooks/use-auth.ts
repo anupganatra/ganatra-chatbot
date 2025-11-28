@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { User } from '@/types/user'
@@ -9,18 +9,25 @@ export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
+  const initializedRef = useRef(false)
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+    // Prevent double initialization in React StrictMode
+    if (initializedRef.current) return
+    initializedRef.current = true
+
+    // Use getSession for initial load (uses cached data, doesn't hit server)
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
       
-      if (authUser) {
-        const userMetadata = authUser.user_metadata || {}
+      if (session?.user) {
+        const userMetadata = session.user.user_metadata || {}
         setUser({
-          id: authUser.id,
-          email: authUser.email || '',
-          role: userMetadata.role || 'user'
+          id: session.user.id,
+          email: session.user.email || '',
+          role: userMetadata.role || 'user',
+          fullName: userMetadata.full_name || ''
         })
       } else {
         setUser(null)
@@ -28,16 +35,17 @@ export function useAuth() {
       setLoading(false)
     }
 
-    getUser()
+    initializeAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (session?.user) {
           const userMetadata = session.user.user_metadata || {}
           setUser({
             id: session.user.id,
             email: session.user.email || '',
-            role: userMetadata.role || 'user'
+            role: userMetadata.role || 'user',
+            fullName: userMetadata.full_name || ''
           })
         } else {
           setUser(null)
@@ -49,13 +57,23 @@ export function useAuth() {
     return () => {
       subscription.unsubscribe()
     }
-  }, [router, supabase])
+  }, [supabase])
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut()
     router.push('/login')
-  }
+  }, [supabase, router])
 
-  return { user, loading, signOut }
+  const updateUser = useCallback(async (data: { fullName?: string }) => {
+    const { error } = await supabase.auth.updateUser({
+      data: { full_name: data.fullName }
+    })
+    if (!error) {
+      setUser(prev => prev ? { ...prev, fullName: data.fullName } : null)
+    }
+    return { error }
+  }, [supabase])
+
+  return { user, loading, signOut, updateUser }
 }
 

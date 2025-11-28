@@ -18,17 +18,18 @@ export default function SettingsPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<SettingsTab>("general")
   const [fullName, setFullName] = useState(user?.fullName || "")
-  const [theme, setTheme] = useState<Theme>("system")
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem("theme") as Theme) || "system"
+    }
+    return "system"
+  })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     if (user?.fullName) {
       setFullName(user.fullName)
-    }
-    const savedTheme = localStorage.getItem("theme") as Theme
-    if (savedTheme) {
-      setTheme(savedTheme)
     }
   }, [user])
 

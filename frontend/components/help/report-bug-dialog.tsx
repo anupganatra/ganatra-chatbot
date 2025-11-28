@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Check } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/hooks/use-auth"
 
 interface ReportBugDialogProps {
   open: boolean
@@ -24,33 +26,50 @@ interface ReportBugDialogProps {
 type BugCategory = "ui" | "functionality" | "performance" | "other"
 
 export function ReportBugDialog({ open, onOpenChange }: ReportBugDialogProps) {
+  const { user } = useAuth()
+  const supabase = useMemo(() => createClient(), [])
   const [category, setCategory] = useState<BugCategory>("functionality")
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim()) return
 
     setSubmitting(true)
+    setError(null)
 
-    // Simulate API call - in production, this would send to your backend
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    try {
+      const { error: insertError } = await supabase
+        .from('bug_reports')
+        .insert({
+          user_id: user?.id,
+          user_email: user?.email,
+          category,
+          title: title.trim(),
+          description: description.trim(),
+        })
 
-    console.log("Bug report submitted:", { category, title, description })
+      if (insertError) throw insertError
 
-    setSubmitting(false)
-    setSubmitted(true)
+      setSubmitted(true)
 
-    // Reset and close after showing success
-    setTimeout(() => {
-      setSubmitted(false)
-      setTitle("")
-      setDescription("")
-      setCategory("functionality")
-      onOpenChange(false)
-    }, 1500)
+      // Reset and close after showing success
+      setTimeout(() => {
+        setSubmitted(false)
+        setTitle("")
+        setDescription("")
+        setCategory("functionality")
+        onOpenChange(false)
+      }, 1500)
+    } catch (err) {
+      console.error("Error submitting bug report:", err)
+      setError("Failed to submit report. Please try again.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -60,6 +79,7 @@ export function ReportBugDialog({ open, onOpenChange }: ReportBugDialogProps) {
       setDescription("")
       setCategory("functionality")
       setSubmitted(false)
+      setError(null)
     }
     onOpenChange(isOpen)
   }
@@ -119,6 +139,10 @@ export function ReportBugDialog({ open, onOpenChange }: ReportBugDialogProps) {
                 />
               </div>
             </div>
+
+            {error && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
 
             <DialogFooter className="mt-4">
               <Button variant="outline" onClick={() => onOpenChange(false)}>

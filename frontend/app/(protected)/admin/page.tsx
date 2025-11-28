@@ -1,19 +1,63 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
+import { getAdminStats } from "@/lib/api/backend"
 import { DocumentUpload } from "@/components/admin/document-upload"
 import DocumentList from "@/components/admin/document-list"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, FileText, Upload, BarChart3 } from "lucide-react"
+import { ArrowLeft, FileText, Upload, BarChart3, Loader2 } from "lucide-react"
+
+interface AdminStats {
+  total_documents: number
+  total_chunks: number
+  total_storage_bytes: number
+  collection_name: string
+  vectors_count: number
+}
+
+function formatStorageSize(bytes: number): string {
+  if (bytes === 0) return "0 B"
+  const k = 1024
+  const sizes = ["B", "KB", "MB", "GB"]
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i]
+}
 
 export default function AdminPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("documents")
+  const [stats, setStats] = useState<AdminStats | null>(null)
+  const [statsLoading, setStatsLoading] = useState(false)
+  const [statsError, setStatsError] = useState<string | null>(null)
+  const prevTabRef = useRef(activeTab)
+
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true)
+    setStatsError(null)
+    try {
+      const data = await getAdminStats()
+      setStats(data)
+    } catch (err) {
+      console.error("Error fetching stats:", err)
+      setStatsError("Failed to load statistics")
+    } finally {
+      setStatsLoading(false)
+    }
+  }, [])
+
+  // Fetch stats when switching to analytics tab
+  useEffect(() => {
+    // Only fetch when switching TO analytics tab (not already on it)
+    if (activeTab === "analytics" && prevTabRef.current !== "analytics" && !statsLoading) {
+      fetchStats()
+    }
+    prevTabRef.current = activeTab
+  }, [activeTab, statsLoading, fetchStats])
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
@@ -110,11 +154,35 @@ export default function AdminPage() {
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
+            {statsLoading && !stats && (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+                <p className="text-sm text-muted-foreground">Loading analytics...</p>
+              </div>
+            )}
+
+            {statsError && (
+              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg">
+                {statsError}
+                <Button variant="link" size="sm" onClick={fetchStats} className="ml-2 p-0 h-auto">
+                  Retry
+                </Button>
+              </div>
+            )}
+
+            {(!statsLoading || stats) && (
+            <>
             <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>Total Documents</CardDescription>
-                  <CardTitle className="text-3xl">--</CardTitle>
+                  <CardTitle className="text-3xl">
+                    {statsLoading ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : (
+                      stats?.total_documents ?? "--"
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">Documents in knowledge base</p>
@@ -123,7 +191,13 @@ export default function AdminPage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>Total Chunks</CardDescription>
-                  <CardTitle className="text-3xl">--</CardTitle>
+                  <CardTitle className="text-3xl">
+                    {statsLoading ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : (
+                      stats?.total_chunks?.toLocaleString() ?? "--"
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">Indexed text segments</p>
@@ -132,7 +206,15 @@ export default function AdminPage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>Storage Used</CardDescription>
-                  <CardTitle className="text-3xl">--</CardTitle>
+                  <CardTitle className="text-3xl">
+                    {statsLoading ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    ) : stats?.total_storage_bytes !== undefined ? (
+                      formatStorageSize(stats.total_storage_bytes)
+                    ) : (
+                      "--"
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">Total file size</p>
@@ -152,6 +234,8 @@ export default function AdminPage() {
                 </div>
               </CardContent>
             </Card>
+            </>
+            )}
           </TabsContent>
         </Tabs>
       </main>

@@ -55,6 +55,7 @@
     "react-hook-form": "latest",
     "react-markdown": "latest",
     "react-resizable-panels": "latest",
+    "recharts": "^3.5.0",
     "rehype-highlight": "^7.0.2",
     "rehype-sanitize": "latest",
     "remark-gfm": "latest",
