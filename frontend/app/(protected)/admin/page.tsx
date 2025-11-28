@@ -222,7 +222,7 @@ export default function AdminPage() {
               </Card>
             </div>
 
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle>Usage Analytics</CardTitle>
                 <CardDescription>Coming soon - track document usage and search patterns</CardDescription>
@@ -233,7 +233,7 @@ export default function AdminPage() {
                   <p>Analytics dashboard coming soon</p>
                 </div>
               </CardContent>
-            </Card>
+            </Card> */}
             </>
             )}
           </TabsContent>
