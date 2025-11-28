@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { createClient } from '@/lib/supabase/client'
 
 export function SetupPasswordForm() {
+  const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -23,6 +24,13 @@ export function SetupPasswordForm() {
     e.preventDefault()
     setLoading(true)
     setError(null)
+
+    // Validate name
+    if (!fullName.trim()) {
+      setError('Please enter your name')
+      setLoading(false)
+      return
+    }
 
     // Validate passwords match
     if (password !== confirmPassword) {
@@ -39,9 +47,12 @@ export function SetupPasswordForm() {
     }
 
     try {
-      // Update user password
+      // Update user password and name in a single call
       const { error } = await supabase.auth.updateUser({
-        password: password
+        password: password,
+        data: {
+          full_name: fullName.trim()
+        }
       })
 
       if (error) throw error
@@ -49,21 +60,6 @@ export function SetupPasswordForm() {
       // Redirect to chat after successful password setup
       router.push('/chat')
       router.refresh()
-
-      // In setup-password-form.tsx, after setting password:
-      const { data: { user } } = await supabase.auth.getUser()
-
-      if (user?.email) {
-        // Check if email is in admin whitelist
-        const adminEmails = ['admin@example.com', 'admin2@example.com']
-        const isAdminEmail = adminEmails.includes(user.email)
-        
-        if (isAdminEmail) {
-          await supabase.auth.updateUser({
-            data: { role: 'admin' }
-          })
-        }
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set password')
     } finally {
@@ -74,11 +70,23 @@ export function SetupPasswordForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Set Your Password</CardTitle>
-        <CardDescription>Please set a password to secure your account</CardDescription>
+        <CardTitle>Complete Your Account Setup</CardTitle>
+        <CardDescription>Please set your name and password to secure your account</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="fullName">Full Name</Label>
+            <Input
+              id="fullName"
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              disabled={loading}
+              placeholder="Enter your full name"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <div className="relative">
@@ -140,7 +148,7 @@ export function SetupPasswordForm() {
             <p className="text-sm text-destructive">{error}</p>
           )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Setting password...' : 'Set Password'}
+            {loading ? 'Setting up account...' : 'Complete Setup'}
           </Button>
         </form>
       </CardContent>
