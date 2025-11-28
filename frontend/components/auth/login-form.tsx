@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, FormEvent } from 'react'
+import { useState, FormEvent, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,53 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  // Handle invitation tokens from URL hash
+  useEffect(() => {
+    const handleInvitation = async () => {
+      // Check if we're in the browser
+      if (typeof window === 'undefined') return
+
+      // Get hash from URL
+      const hash = window.location.hash
+      if (!hash) return
+
+      // Parse hash parameters
+      const hashParams = new URLSearchParams(hash.substring(1))
+      const type = hashParams.get('type')
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
+
+      // Check if this is an invitation
+      if (type === 'invite' && accessToken && refreshToken) {
+        setLoading(true)
+        setError(null)
+
+        try {
+          // Set the session with the tokens from the invitation
+          const { data, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+
+          if (sessionError) throw sessionError
+
+          // Clear the hash from URL
+          window.history.replaceState(null, '', window.location.pathname)
+
+          // Redirect to password setup page for invited users
+          // They need to set a password before they can use the app
+          router.push('/setup-password')
+          router.refresh()
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to accept invitation')
+          setLoading(false)
+        }
+      }
+    }
+
+    handleInvitation()
+  }, [router, supabase])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
