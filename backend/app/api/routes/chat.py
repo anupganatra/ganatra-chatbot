@@ -5,6 +5,7 @@ from app.models.chat import ChatRequest, ChatResponse
 from app.models.user import User
 from app.api.dependencies import get_current_user
 from app.services.rag import rag_service
+from app.services.user_preferences import user_preferences_service
 from app.middleware.rate_limit import limiter
 import json
 import uuid
@@ -31,6 +32,12 @@ async def chat(
         ChatResponse with generated answer
     """
     try:
+        # Determine which model to use
+        # Priority: 1. model_id from request, 2. user's saved preference, 3. default (None = Gemini)
+        model_id = chat_request.model_id
+        if not model_id:
+            model_id = user_preferences_service.get_user_model(current_user.id)
+        
         # Retrieve context and generate answer
         context = rag_service.retrieve_context(chat_request.message)
         
@@ -46,7 +53,8 @@ async def chat(
         answer = rag_service.generate_answer(
             query=chat_request.message,
             context=context,
-            stream=False
+            stream=False,
+            model_id=model_id
         )
         
         # Format sources
@@ -94,6 +102,12 @@ async def chat_stream(
         StreamingResponse with chunks
     """
     try:
+        # Determine which model to use
+        # Priority: 1. model_id from request, 2. user's saved preference, 3. default (None = Gemini)
+        model_id = chat_request.model_id
+        if not model_id:
+            model_id = user_preferences_service.get_user_model(current_user.id)
+        
         # Retrieve context
         context = rag_service.retrieve_context(chat_request.message)
         
@@ -108,7 +122,8 @@ async def chat_stream(
             # Stream response
             async for chunk in rag_service.generate_answer_stream(
                 query=chat_request.message,
-                context=context
+                context=context,
+                model_id=model_id
             ):
                 yield f"data: {json.dumps({'content': chunk, 'done': False})}\n\n"
             

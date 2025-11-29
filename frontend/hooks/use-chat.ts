@@ -101,7 +101,7 @@ export function useChat(initialConversationId?: string) {
     }
   }, [user?.id, supabase])
 
-  const sendMessage = useCallback(async (content: string, stream: boolean = true) => {
+  const sendMessage = useCallback(async (content: string, modelId?: string, stream: boolean = true) => {
     if (!content.trim() || isSendingRef.current) return
 
     isSendingRef.current = true
@@ -144,7 +144,8 @@ export function useChat(initialConversationId?: string) {
       const request: ChatRequest = {
         message: content,
         conversation_id: currentConvId,
-        stream
+        stream,
+        model_id: modelId
       }
 
       if (stream) {

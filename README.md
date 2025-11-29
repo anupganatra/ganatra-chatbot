@@ -121,8 +121,13 @@ QDRANT_COLLECTION_NAME=documents
 
 # Gemini
 GEMINI_API_KEY=your_gemini_api_key
-GEMINI_MODEL=gemini-pro
-GEMINI_EMBEDDING_MODEL=models/embedding-001
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
+
+# OpenRouter (optional - for OpenRouter free models)
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DEFAULT_LLM_PROVIDER=gemini
 
 # CORS
 CORS_ORIGINS=["http://localhost:3000"]

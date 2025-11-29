@@ -1,20 +1,22 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ChatMessage } from "./chat-message"
 import { ChatInput } from "./chat-input"
 import { GreetingHeader } from "./greeting-header"
+import { ModelSelector } from "./model-selector"
 import type { ChatMessage as ChatMessageType } from "@/types/chat"
 
 interface ChatWindowProps {
   messages: ChatMessageType[]
-  onSend: (message: string) => void
+  onSend: (message: string, modelId?: string) => void
   loading?: boolean
   userName?: string // added userName prop for greeting
 }
 
 export function ChatWindow({ messages, onSend, loading, userName }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -23,6 +25,14 @@ export function ChatWindow({ messages, onSend, loading, userName }: ChatWindowPr
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  const handleModelChange = (modelId: string) => {
+    setSelectedModelId(modelId)
+  }
+
+  const handleSend = (message: string) => {
+    onSend(message, selectedModelId || undefined)
+  }
 
   const hasMessages = messages.length > 0
 
@@ -57,14 +67,22 @@ export function ChatWindow({ messages, onSend, loading, userName }: ChatWindowPr
             <div ref={messagesEndRef} />
           </div>
           <div className="pb-4">
-            <ChatInput onSend={onSend} disabled={loading} />
+            <ChatInput 
+              onSend={handleSend} 
+              disabled={loading}
+              modelSelector={<ModelSelector onModelChange={handleModelChange} />}
+            />
           </div>
         </>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center">
           <GreetingHeader userName={userName} />
           <div className="w-full max-w-2xl px-4">
-            <ChatInput onSend={onSend} disabled={loading} />
+            <ChatInput 
+              onSend={handleSend} 
+              disabled={loading}
+              modelSelector={<ModelSelector onModelChange={handleModelChange} />}
+            />
           </div>
         </div>
       )}

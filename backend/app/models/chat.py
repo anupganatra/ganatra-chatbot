@@ -14,6 +14,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=5000, description="User message")
     conversation_id: Optional[str] = Field(None, description="Optional conversation ID for context")
     stream: bool = Field(True, description="Whether to stream the response")
+    model_id: Optional[str] = Field(None, description="Optional model ID to use for this request")
 
 
 class ChatResponse(BaseModel):

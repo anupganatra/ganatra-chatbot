@@ -15,6 +15,7 @@ export interface ChatRequest {
   message: string
   conversation_id?: string
   stream?: boolean
+  model_id?: string
 }
 
 export interface ChatResponse {
@@ -37,5 +38,22 @@ export interface ChatHistoryItem {
   title: string
   created_at: string
   updated_at: string
+}
+
+export interface Model {
+  id: string
+  model_id: string
+  provider: 'gemini' | 'openrouter'
+  name: string
+  description?: string
+  is_free: boolean
+}
+
+export interface UserModelPreference {
+  model_id?: string
+  name?: string
+  description?: string
+  provider?: 'gemini' | 'openrouter'
+  is_free?: boolean
 }
 

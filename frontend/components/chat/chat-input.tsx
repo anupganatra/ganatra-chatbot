@@ -8,6 +8,7 @@ import { ArrowUp, Mic, MicOff } from "lucide-react"
 interface ChatInputProps {
   onSend: (message: string) => void
   disabled?: boolean
+  modelSelector?: React.ReactNode
 }
 
 // Extend Window interface for SpeechRecognition
@@ -35,7 +36,7 @@ interface SpeechRecognitionErrorEvent {
   error: string
 }
 
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, modelSelector }: ChatInputProps) {
   const [message, setMessage] = useState("")
   const [isRecording, setIsRecording] = useState(false)
   // Check browser support immediately (synchronously)
@@ -248,52 +249,57 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
 
   return (
     <form onSubmit={handleSubmit} className="relative">
-      <div className="relative rounded-2xl border border-input bg-background shadow-sm">
-        <Textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="How can I help you today?"
-          className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent pr-24 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-2xl"
-          disabled={disabled}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault()
-              handleSubmit(e)
-            }
-          }}
-        />
-        <div className="absolute right-2 bottom-2 flex gap-1">
-          {isSupported && (
+        <div className="relative rounded-2xl border border-input bg-background shadow-sm">
+          <Textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="How can I help you today?"
+            className="min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent pr-32 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-2xl"
+            disabled={disabled}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault()
+                handleSubmit(e)
+              }
+            }}
+          />
+          <div className="absolute right-2 bottom-2 flex items-center gap-1">
+            {modelSelector && (
+              <div className="mr-1">
+                {modelSelector}
+              </div>
+            )}
+            {isSupported && (
+              <Button
+                type="button"
+                onClick={toggleRecording}
+                disabled={disabled}
+                size="icon"
+                variant={isRecording ? "destructive" : "ghost"}
+                className={`h-8 w-8 rounded-full transition-all ${
+                  isRecording
+                    ? "bg-destructive hover:bg-destructive/90 animate-pulse text-destructive-foreground"
+                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+                title={isRecording ? "Stop recording" : "Start voice input"}
+              >
+                {isRecording ? (
+                  <MicOff className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </Button>
+            )}
             <Button
-              type="button"
-              onClick={toggleRecording}
-              disabled={disabled}
+              type="submit"
+              disabled={disabled || !message.replace(/\s*\[listening\.\.\.\]\s*$/, "").trim()}
               size="icon"
-              variant={isRecording ? "destructive" : "ghost"}
-              className={`h-8 w-8 rounded-full transition-all ${
-                isRecording
-                  ? "bg-destructive hover:bg-destructive/90 animate-pulse text-destructive-foreground"
-                  : "hover:bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-              title={isRecording ? "Stop recording" : "Start voice input"}
+              className="h-8 w-8 rounded-full bg-primary hover:bg-primary/90"
             >
-              {isRecording ? (
-                <MicOff className="h-4 w-4" />
-              ) : (
-                <Mic className="h-4 w-4" />
-              )}
+              <ArrowUp className="h-4 w-4" />
             </Button>
-          )}
-          <Button
-            type="submit"
-            disabled={disabled || !message.replace(/\s*\[listening\.\.\.\]\s*$/, "").trim()}
-            size="icon"
-            className="h-8 w-8 rounded-full bg-primary hover:bg-primary/90"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </Button>
+          </div>
         </div>
-      </div>
-    </form>
+      </form>
   )
 }

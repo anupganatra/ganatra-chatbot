@@ -31,6 +31,7 @@ cp .env.example .env
 - Supabase URL and key
 - Qdrant Cloud URL and API key
 - Gemini API key
+- OpenRouter API key (optional, for OpenRouter models)
 - CORS origins (your frontend URL)
 
 ## Running Locally

@@ -45,7 +45,8 @@ class RAGService:
         self,
         query: str,
         context: Optional[List[Dict]] = None,
-        stream: bool = False
+        stream: bool = False,
+        model_id: Optional[str] = None
     ) -> str:
         """
         Generate answer using RAG pipeline.
@@ -54,6 +55,7 @@ class RAGService:
             query: User query
             context: Optional pre-retrieved context
             stream: Whether to stream the response
+            model_id: Optional model ID to use
         
         Returns:
             Generated answer
@@ -75,7 +77,8 @@ class RAGService:
         response = llm_service.generate_response(
             query=query,
             context=formatted_context,
-            stream=stream
+            stream=stream,
+            model_id=model_id
         )
         
         return response
@@ -83,7 +86,8 @@ class RAGService:
     async def generate_answer_stream(
         self,
         query: str,
-        context: Optional[List[Dict]] = None
+        context: Optional[List[Dict]] = None,
+        model_id: Optional[str] = None
     ):
         """
         Generate streaming answer using RAG pipeline.
@@ -91,6 +95,7 @@ class RAGService:
         Args:
             query: User query
             context: Optional pre-retrieved context
+            model_id: Optional model ID to use
         
         Yields:
             Response chunks
@@ -111,7 +116,8 @@ class RAGService:
         # Generate streaming response
         async for chunk in llm_service.generate_response_stream(
             query=query,
-            context=formatted_context
+            context=formatted_context,
+            model_id=model_id
         ):
             yield chunk
 

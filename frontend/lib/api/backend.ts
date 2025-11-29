@@ -1,4 +1,4 @@
-import { ChatRequest, ChatResponse } from '@/types/chat'
+import { ChatRequest, ChatResponse, Model, UserModelPreference } from '@/types/chat'
 import { DocumentUploadResponse, DocumentDeleteResponse } from '@/types/document'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
@@ -178,6 +178,71 @@ export async function getAdminDocuments(offset = 0, limit = 100) {
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.detail || 'Failed to get documents')
+  }
+
+  return response.json()
+}
+
+// Model-related API functions
+export async function getAvailableModels(): Promise<Model[]> {
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(`${BACKEND_URL}/models`, {
+    method: 'GET',
+    headers,
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get available models')
+  }
+
+  return response.json()
+}
+
+export async function getUserModelPreference(): Promise<UserModelPreference> {
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(`${BACKEND_URL}/models/user/preference`, {
+    method: 'GET',
+    headers,
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get user model preference')
+  }
+
+  return response.json()
+}
+
+export async function setUserModelPreference(modelId: string): Promise<{ message: string; model_id: string }> {
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(`${BACKEND_URL}/models/user/preference?model_id=${encodeURIComponent(modelId)}`, {
+    method: 'POST',
+    headers,
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to set user model preference')
+  }
+
+  return response.json()
+}
+
+export async function getOpenRouterModels() {
+  const headers = await getAuthHeaders()
+
+  const response = await fetch(`${BACKEND_URL}/models/openrouter`, {
+    method: 'GET',
+    headers,
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to get OpenRouter models')
   }
 
   return response.json()

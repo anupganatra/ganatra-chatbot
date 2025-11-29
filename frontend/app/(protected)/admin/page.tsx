@@ -9,7 +9,8 @@ import DocumentList from "@/components/admin/document-list"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, FileText, Upload, BarChart3, Loader2 } from "lucide-react"
+import { ArrowLeft, FileText, Upload, BarChart3, Loader2, Cpu } from "lucide-react"
+import { ModelManagement } from "@/components/admin/model-management"
 
 interface AdminStats {
   total_documents: number
@@ -100,10 +101,14 @@ export default function AdminPage() {
 
       <main className="flex-1 container mx-auto px-4 py-6 max-w-6xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-md grid-cols-3">
             <TabsTrigger value="documents" className="gap-2">
               <FileText className="h-4 w-4" />
               Documents
+            </TabsTrigger>
+            <TabsTrigger value="models" className="gap-2">
+              <Cpu className="h-4 w-4" />
+              Models
             </TabsTrigger>
             <TabsTrigger value="analytics" className="gap-2">
               <BarChart3 className="h-4 w-4" />
@@ -151,6 +156,18 @@ export default function AdminPage() {
                 </Card>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="models" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Model Management</CardTitle>
+                <CardDescription>Configure which AI models are available to users</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ModelManagement />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
