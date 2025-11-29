@@ -1,4 +1,4 @@
-# AI Chatbot Frontend
+# Ganatra Chatbot Frontend
 
 Next.js 14 frontend for AI chatbot application with RAG pipeline.
 

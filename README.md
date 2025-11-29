@@ -1,4 +1,4 @@
-# AI Chatbot Application - Full Stack
+# Ganatra Chatbot
 
 A production-ready AI chatbot application with RAG (Retrieval-Augmented Generation) pipeline, built with Next.js 14, FastAPI, Supabase, Qdrant Cloud, and Google Gemini.
 
