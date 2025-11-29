@@ -29,14 +29,6 @@ VALUES (
 )
 ON CONFLICT (model_id) DO NOTHING;
 
-
--- Enable Row Level Security (RLS) for available_models and documents tables
--- This migration enables RLS and creates appropriate policies
-
--- ============================================================================
--- AVAILABLE_MODELS TABLE
--- ============================================================================
-
 -- Enable RLS on available_models table
 ALTER TABLE available_models ENABLE ROW LEVEL SECURITY;
 
