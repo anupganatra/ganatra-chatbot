@@ -15,8 +15,19 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [processingInvitation, setProcessingInvitation] = useState(false)
   const router = useRouter()
   const supabase = createClient()
+
+  // Check for invitation tokens immediately (synchronously) before render
+  const hasInvitationTokens = typeof window !== 'undefined' && (() => {
+    const hash = window.location.hash
+    if (!hash) return false
+    const hashParams = new URLSearchParams(hash.substring(1))
+    return hashParams.get('type') === 'invite' && 
+           !!hashParams.get('access_token') && 
+           !!hashParams.get('refresh_token')
+  })()
 
   // Handle invitation tokens from URL hash
   useEffect(() => {
@@ -36,6 +47,7 @@ export function LoginForm() {
 
       // Check if this is an invitation
       if (type === 'invite' && accessToken && refreshToken) {
+        setProcessingInvitation(true)
         setLoading(true)
         setError(null)
 
@@ -52,18 +64,32 @@ export function LoginForm() {
           window.history.replaceState(null, '', window.location.pathname)
 
           // Redirect to password setup page for invited users
-          // They need to set a password before they can use the app
-          router.push('/setup-password')
-          router.refresh()
+          // Use window.location.href for immediate hard redirect
+          window.location.href = '/setup-password'
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to accept invitation')
           setLoading(false)
+          setProcessingInvitation(false)
         }
       }
     }
 
     handleInvitation()
   }, [router, supabase])
+
+  // Show loading state immediately if invitation tokens are detected
+  if (processingInvitation || (hasInvitationTokens && loading)) {
+    return (
+      <Card className="w-full max-w-md">
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mb-3" />
+            <p className="text-sm text-muted-foreground">Processing invitation...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
