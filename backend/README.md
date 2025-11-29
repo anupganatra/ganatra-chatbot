@@ -1,6 +1,6 @@
-# AI Chatbot Backend API
+# Ganatra Chatbot Backend
 
-FastAPI backend for AI chatbot application with RAG pipeline.
+FastAPI backend for Ganatra chatbot application with RAG pipeline.
 
 ## Features
 
