@@ -1,35 +1,3 @@
--- Create available_models table for storing available LLM models
-CREATE TABLE IF NOT EXISTS available_models (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    model_id TEXT UNIQUE NOT NULL,
-    provider TEXT NOT NULL CHECK (provider IN ('gemini', 'openrouter')),
-    name TEXT NOT NULL,
-    description TEXT,
-    is_free BOOLEAN DEFAULT FALSE,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create index on model_id for faster lookups
-CREATE INDEX IF NOT EXISTS idx_available_models_model_id ON available_models(model_id);
-
--- Create index on is_active for filtering active models
-CREATE INDEX IF NOT EXISTS idx_available_models_is_active ON available_models(is_active);
-
--- Insert default Gemini model
-INSERT INTO available_models (model_id, provider, name, description, is_free, is_active)
-VALUES (
-    'gemini-2.5-flash',
-    'gemini',
-    'Gemini 2.5 Flash',
-    'Fast and efficient model for quick responses',
-    true,
-    true
-)
-ON CONFLICT (model_id) DO NOTHING;
-
-
 -- Enable Row Level Security (RLS) for available_models and documents tables
 -- This migration enables RLS and creates appropriate policies
 
@@ -107,3 +75,71 @@ USING (
     AND (auth.users.raw_user_meta_data->>'role')::text = 'admin'
   )
 );
+
+-- ============================================================================
+-- DOCUMENTS TABLE
+-- ============================================================================
+
+-- Enable RLS on documents table
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Only admins can read documents
+-- Documents are admin-only functionality
+CREATE POLICY "Admins can read documents"
+ON documents
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE auth.users.id = auth.uid()
+    AND (auth.users.raw_user_meta_data->>'role')::text = 'admin'
+  )
+);
+
+-- Policy: Only admins can insert documents
+CREATE POLICY "Admins can insert documents"
+ON documents
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE auth.users.id = auth.uid()
+    AND (auth.users.raw_user_meta_data->>'role')::text = 'admin'
+  )
+);
+
+-- Policy: Only admins can update documents
+CREATE POLICY "Admins can update documents"
+ON documents
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE auth.users.id = auth.uid()
+    AND (auth.users.raw_user_meta_data->>'role')::text = 'admin'
+  )
+)
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE auth.users.id = auth.uid()
+    AND (auth.users.raw_user_meta_data->>'role')::text = 'admin'
+  )
+);
+
+-- Policy: Only admins can delete documents
+CREATE POLICY "Admins can delete documents"
+ON documents
+FOR DELETE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE auth.users.id = auth.uid()
+    AND (auth.users.raw_user_meta_data->>'role')::text = 'admin'
+  )
+);
+

@@ -48,6 +48,9 @@ export function DocumentUpload() {
     if (result) {
       setFile(null)
       if (inputRef.current) inputRef.current.value = ""
+      
+      // Dispatch event to notify DocumentList to invalidate cache and refresh
+      window.dispatchEvent(new CustomEvent('document-uploaded'))
     }
   }
 

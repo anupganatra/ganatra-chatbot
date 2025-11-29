@@ -9,6 +9,10 @@ import { getOpenRouterModels } from "@/lib/api/backend"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
+// Cache configuration
+const CACHE_KEY_MODELS = 'admin_models_cache'
+const CACHE_KEY_OPENROUTER_MODELS = 'admin_openrouter_models_cache'
+
 interface Model {
   id: string
   model_id: string
@@ -17,6 +21,38 @@ interface Model {
   description?: string
   is_free: boolean
   is_active: boolean
+}
+
+// Cache utility functions
+function getCachedData<T>(key: string): T | null {
+  if (typeof window === 'undefined') return null
+  
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    
+    const parsed: T = JSON.parse(cached)
+    return parsed
+  } catch (err) {
+    console.error('Error reading cache:', err)
+    return null
+  }
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  if (typeof window === 'undefined') return
+  
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch (err) {
+    console.error('Error writing cache:', err)
+  }
+}
+
+function clearCache(): void {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(CACHE_KEY_MODELS)
+  localStorage.removeItem(CACHE_KEY_OPENROUTER_MODELS)
 }
 
 async function getAuthHeaders(): Promise<HeadersInit> {
@@ -58,8 +94,37 @@ export function ModelManagement() {
     loadAllData()
   }, [])
 
-  const loadAllData = async () => {
-    await Promise.all([loadModels(), loadOpenRouterModels()])
+  const loadAllData = async (useCache: boolean = true) => {
+    // Try to load from cache first on initial load
+    if (useCache) {
+      const cachedModels = getCachedData<Model[]>(CACHE_KEY_MODELS)
+      const cachedOpenRouterModels = getCachedData<OpenRouterModel[]>(CACHE_KEY_OPENROUTER_MODELS)
+      
+      if (cachedModels && cachedOpenRouterModels) {
+        // Use cached data immediately
+        setModels(cachedModels)
+        setOpenRouterModels(cachedOpenRouterModels)
+        setLoading(false)
+        setLoadingOpenRouter(false)
+        
+        // Fetch fresh data in the background to update cache (silent mode to avoid loading state changes)
+        Promise.all([loadModels(true, true), loadOpenRouterModels(true, true)]).catch(err => {
+          console.error('Error refreshing cache in background:', err)
+        })
+        return
+      } else if (cachedModels) {
+        // Partial cache - use what we have
+        setModels(cachedModels)
+        setLoading(false)
+      } else if (cachedOpenRouterModels) {
+        // Partial cache - use what we have
+        setOpenRouterModels(cachedOpenRouterModels)
+        setLoadingOpenRouter(false)
+      }
+    }
+    
+    // Load fresh data
+    await Promise.all([loadModels(useCache), loadOpenRouterModels(useCache)])
   }
 
   // Clean model name by removing provider prefixes (e.g., "Provider: Model Name" -> "Model Name")
@@ -108,9 +173,11 @@ export function ModelManagement() {
     return 'other'
   }
 
-  const loadModels = async () => {
+  const loadModels = async (updateCache: boolean = true, silent: boolean = false) => {
     try {
-      setLoading(true)
+      if (!silent) {
+        setLoading(true)
+      }
       setError(null)
       const headers = await getAuthHeaders()
       const response = await fetch(`${BACKEND_URL}/admin/models`, { headers })
@@ -131,17 +198,26 @@ export function ModelManagement() {
         return a.name.localeCompare(b.name)
       })
       setModels(sortedData)
+      
+      // Update cache after successful fetch
+      if (updateCache) {
+        setCachedData(CACHE_KEY_MODELS, sortedData)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load models')
       console.error('Error loading models:', err)
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }
 
-  const loadOpenRouterModels = async () => {
+  const loadOpenRouterModels = async (updateCache: boolean = true, silent: boolean = false) => {
     try {
-      setLoadingOpenRouter(true)
+      if (!silent) {
+        setLoadingOpenRouter(true)
+      }
       setOpenRouterError(null)
       const models = await getOpenRouterModels()
       // Sort OpenRouter models by provider name
@@ -155,6 +231,12 @@ export function ModelManagement() {
         return a.name.localeCompare(b.name)
       })
       setOpenRouterModels(sortedModels)
+      
+      // Update cache after successful fetch
+      if (updateCache) {
+        setCachedData(CACHE_KEY_OPENROUTER_MODELS, sortedModels)
+      }
+      
       if (sortedModels.length === 0) {
         setOpenRouterError("No free models found. Make sure OPENROUTER_API_KEY is configured correctly.")
       }
@@ -163,7 +245,9 @@ export function ModelManagement() {
       setOpenRouterError(errorMessage)
       console.error('Error loading OpenRouter models:', err)
     } finally {
-      setLoadingOpenRouter(false)
+      if (!silent) {
+        setLoadingOpenRouter(false)
+      }
     }
   }
 
@@ -313,7 +397,7 @@ export function ModelManagement() {
           <Button 
             variant="link" 
             size="sm" 
-            onClick={loadOpenRouterModels} 
+            onClick={() => loadOpenRouterModels(true)} 
             className="ml-2 p-0 h-auto"
           >
             Retry
@@ -322,7 +406,15 @@ export function ModelManagement() {
       )}
 
       <div className="flex items-center justify-end mb-4">
-        <Button variant="outline" size="sm" onClick={loadAllData} disabled={loading || loadingOpenRouter}>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => {
+            clearCache()
+            loadAllData(false)
+          }} 
+          disabled={loading || loadingOpenRouter}
+        >
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { getAdminDocuments } from "@/lib/api/backend"
@@ -8,18 +8,77 @@ import { useDocuments } from "@/hooks/use-documents"
 import type { DocumentInfo } from "@/types/document"
 import { RefreshCw, Trash2, FileText, Calendar, Layers, HardDrive } from "lucide-react"
 
+// Cache configuration
+const CACHE_KEY_DOCUMENTS = 'admin_documents_cache'
+
+// Cache utility functions
+function getCachedData<T>(key: string): T | null {
+  if (typeof window === 'undefined') return null
+  
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    
+    const parsed: T = JSON.parse(cached)
+    return parsed
+  } catch (err) {
+    console.error('Error reading cache:', err)
+    return null
+  }
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  if (typeof window === 'undefined') return
+  
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch (err) {
+    console.error('Error writing cache:', err)
+  }
+}
+
+function clearCache(): void {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(CACHE_KEY_DOCUMENTS)
+}
+
 export default function DocumentList() {
   const [documents, setDocuments] = useState<DocumentInfo[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { remove, uploading } = useDocuments()
+  const hasLoadedRef = useRef(false)
 
-  const fetchDocs = async () => {
-    setLoading(true)
+  const fetchDocs = async (useCache: boolean = true, silent: boolean = false) => {
+    // Try to load from cache first on initial load
+    if (useCache && !silent) {
+      const cachedDocuments = getCachedData<DocumentInfo[]>(CACHE_KEY_DOCUMENTS)
+      
+      if (cachedDocuments) {
+        // Use cached data immediately
+        setDocuments(cachedDocuments)
+        setLoading(false)
+        
+        // Fetch fresh data in the background to update cache (silent mode to avoid loading state changes)
+        fetchDocs(true, true).catch(err => {
+          console.error('Error refreshing cache in background:', err)
+        })
+        return
+      }
+    }
+
+    if (!silent) {
+      setLoading(true)
+    }
     setError(null)
     try {
       const docs = await getAdminDocuments()
       setDocuments(docs || [])
+      
+      // Update cache after successful fetch
+      if (useCache) {
+        setCachedData(CACHE_KEY_DOCUMENTS, docs || [])
+      }
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message)
@@ -27,12 +86,31 @@ export default function DocumentList() {
         setError(String(err))
       }
     } finally {
-      setLoading(false)
+      if (!silent) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
+    // Prevent double loading in React Strict Mode
+    if (hasLoadedRef.current) return
+    hasLoadedRef.current = true
     fetchDocs()
+  }, [])
+
+  // Listen for document upload events to invalidate cache
+  useEffect(() => {
+    const handleDocumentUploaded = () => {
+      clearCache()
+      fetchDocs(false, false) // Fetch fresh data without using cache
+    }
+
+    window.addEventListener('document-uploaded', handleDocumentUploaded)
+    
+    return () => {
+      window.removeEventListener('document-uploaded', handleDocumentUploaded)
+    }
   }, [])
 
   const handleDelete = async (id: string) => {
@@ -44,6 +122,9 @@ export default function DocumentList() {
       const res = await remove(id)
       if (res) {
         await fetchDocs()
+        
+        // Dispatch event to notify analytics to invalidate cache and refresh
+        window.dispatchEvent(new CustomEvent('document-deleted'))
       } else {
         setError("Failed to delete document")
       }
@@ -75,7 +156,15 @@ export default function DocumentList() {
         <p className="text-sm text-muted-foreground">
           {documents.length} document{documents.length !== 1 ? "s" : ""}
         </p>
-        <Button variant="outline" size="sm" onClick={fetchDocs} disabled={loading}>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => {
+            clearCache()
+            fetchDocs(false, false)
+          }} 
+          disabled={loading}
+        >
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
           Refresh
         </Button>

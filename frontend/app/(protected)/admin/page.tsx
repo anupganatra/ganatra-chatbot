@@ -20,6 +20,40 @@ interface AdminStats {
   vectors_count: number
 }
 
+// Cache configuration
+const CACHE_KEY_ANALYTICS = 'admin_analytics_cache'
+
+// Cache utility functions
+function getCachedData<T>(key: string): T | null {
+  if (typeof window === 'undefined') return null
+  
+  try {
+    const cached = localStorage.getItem(key)
+    if (!cached) return null
+    
+    const parsed: T = JSON.parse(cached)
+    return parsed
+  } catch (err) {
+    console.error('Error reading cache:', err)
+    return null
+  }
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  if (typeof window === 'undefined') return
+  
+  try {
+    localStorage.setItem(key, JSON.stringify(data))
+  } catch (err) {
+    console.error('Error writing cache:', err)
+  }
+}
+
+function clearAnalyticsCache(): void {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(CACHE_KEY_ANALYTICS)
+}
+
 function formatStorageSize(bytes: number): string {
   if (bytes === 0) return "0 B"
   const k = 1024
@@ -37,17 +71,43 @@ export default function AdminPage() {
   const [statsError, setStatsError] = useState<string | null>(null)
   const prevTabRef = useRef(activeTab)
 
-  const fetchStats = useCallback(async () => {
-    setStatsLoading(true)
+  const fetchStats = useCallback(async (useCache: boolean = true, silent: boolean = false) => {
+    // Try to load from cache first
+    if (useCache && !silent) {
+      const cachedStats = getCachedData<AdminStats>(CACHE_KEY_ANALYTICS)
+      
+      if (cachedStats) {
+        // Use cached data immediately
+        setStats(cachedStats)
+        setStatsLoading(false)
+        
+        // Fetch fresh data in the background to update cache (silent mode to avoid loading state changes)
+        fetchStats(true, true).catch(err => {
+          console.error('Error refreshing cache in background:', err)
+        })
+        return
+      }
+    }
+
+    if (!silent) {
+      setStatsLoading(true)
+    }
     setStatsError(null)
     try {
       const data = await getAdminStats()
       setStats(data)
+      
+      // Update cache after successful fetch
+      if (useCache) {
+        setCachedData(CACHE_KEY_ANALYTICS, data)
+      }
     } catch (err) {
       console.error("Error fetching stats:", err)
       setStatsError("Failed to load statistics")
     } finally {
-      setStatsLoading(false)
+      if (!silent) {
+        setStatsLoading(false)
+      }
     }
   }, [])
 
@@ -59,6 +119,25 @@ export default function AdminPage() {
     }
     prevTabRef.current = activeTab
   }, [activeTab, statsLoading, fetchStats])
+
+  // Listen for document upload/delete events to invalidate analytics cache
+  useEffect(() => {
+    const handleDocumentChange = () => {
+      clearAnalyticsCache()
+      // Only refresh stats if we're currently on the analytics tab
+      if (activeTab === "analytics") {
+        fetchStats(false, false) // Fetch fresh data without using cache
+      }
+    }
+
+    window.addEventListener('document-uploaded', handleDocumentChange)
+    window.addEventListener('document-deleted', handleDocumentChange)
+    
+    return () => {
+      window.removeEventListener('document-uploaded', handleDocumentChange)
+      window.removeEventListener('document-deleted', handleDocumentChange)
+    }
+  }, [activeTab, fetchStats])
 
   useEffect(() => {
     if (!loading && (!user || user.role !== "admin")) {
@@ -181,7 +260,7 @@ export default function AdminPage() {
             {statsError && (
               <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg">
                 {statsError}
-                <Button variant="link" size="sm" onClick={fetchStats} className="ml-2 p-0 h-auto">
+                <Button variant="link" size="sm" onClick={() => fetchStats(false, false)} className="ml-2 p-0 h-auto">
                   Retry
                 </Button>
               </div>
