@@ -157,7 +157,7 @@ export function ModelSelector({ onModelChange, className }: ModelSelectorProps) 
         <button
           type="button"
           className={cn(
-            "flex items-center gap-1 h-8 px-0 text-sm font-medium text-foreground hover:text-foreground/80 transition-colors",
+            "flex items-center gap-1 h-8 px-0 text-sm text-muted-foreground hover:text-foreground transition-colors",
             className
           )}
         >
@@ -182,7 +182,7 @@ export function ModelSelector({ onModelChange, className }: ModelSelectorProps) 
                 type="button"
               >
                 <div className="flex-1 text-left">
-                  <div className="text-base">{model.name}</div>
+                  <div className="text-sm text-foreground">{model.name}</div>
                 </div>
                 {isSelected && (
                   <Check className="h-5 w-5 text-primary ml-3 flex-shrink-0" />
@@ -198,7 +198,7 @@ export function ModelSelector({ onModelChange, className }: ModelSelectorProps) 
                   type="button"
                 >
                   <div className="flex-1 text-left">
-                    <div className="text-base font-medium">More models</div>
+                    <div className="text-sm text-foreground">More models</div>
                   </div>
                   <ChevronRight className="h-4 w-4 opacity-50 ml-3 flex-shrink-0" />
                 </button>
@@ -220,7 +220,7 @@ export function ModelSelector({ onModelChange, className }: ModelSelectorProps) 
                         type="button"
                       >
                         <div className="flex-1 text-left">
-                          <div className="text-base">{model.name}</div>
+                          <div className="text-sm text-foreground">{model.name}</div>
                         </div>
                         {isSelected && (
                           <Check className="h-5 w-5 text-primary ml-3 flex-shrink-0" />

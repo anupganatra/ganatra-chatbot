@@ -62,6 +62,52 @@ export function ModelManagement() {
     await Promise.all([loadModels(), loadOpenRouterModels()])
   }
 
+  // Clean model name by removing provider prefixes (e.g., "Provider: Model Name" -> "Model Name")
+  // Handles generic patterns like "Provider: Model", "Provider - Model", etc.
+  const cleanModelName = (name: string): string => {
+    // Remove anything before a colon followed by space (e.g., "Provider: Model Name")
+    let cleaned = name.replace(/^[^:]+:\s*/, "")
+    
+    // If no colon pattern found, try removing pattern like "Provider - Model"
+    if (cleaned === name) {
+      cleaned = name.replace(/^[^-\s]+\s*-\s*/, "")
+    }
+    
+    return cleaned.trim() || name // Return original if cleaning results in empty string
+  }
+
+  // Extract provider name from model_id (e.g., "meta-llama/llama-3.2" -> "meta", "mistralai/mistral" -> "mistral")
+  const extractProviderName = (modelId: string, provider: string): string => {
+    if (provider === 'gemini') {
+      return 'gemini'
+    }
+    // For OpenRouter models, extract provider from model_id
+    // Format: "provider/model-name" or "openrouter/provider/model-name"
+    const parts = modelId.split('/')
+    if (parts.length >= 2) {
+      // Skip "openrouter" prefix if present
+      let providerPart = parts[0] === 'openrouter' ? parts[1] : parts[0]
+      
+      // Remove common suffixes like "-ai", "-aii", etc.
+      providerPart = providerPart.replace(/-aii?$/, '').replace(/-ai$/, '')
+      
+      // Normalize provider names
+      const normalized = providerPart.toLowerCase()
+      if (normalized.includes('meta') || normalized.includes('llama') || normalized === 'meta') return 'meta'
+      if (normalized.includes('mistral') || normalized === 'mistral') return 'mistral'
+      if (normalized.includes('xai') || normalized.includes('grok') || normalized === 'xai') return 'xai'
+      if (normalized.includes('anthropic') || normalized.includes('claude') || normalized === 'anthropic') return 'anthropic'
+      if (normalized.includes('google') || normalized === 'google') return 'google'
+      if (normalized.includes('openai') || normalized === 'openai') return 'openai'
+      if (normalized.includes('cohere') || normalized === 'cohere') return 'cohere'
+      if (normalized.includes('perplexity') || normalized === 'perplexity') return 'perplexity'
+      
+      // Return capitalized first letter
+      return providerPart.charAt(0).toUpperCase() + providerPart.slice(1).toLowerCase()
+    }
+    return 'other'
+  }
+
   const loadModels = async () => {
     try {
       setLoading(true)
@@ -74,7 +120,17 @@ export function ModelManagement() {
       }
       
       const data = await response.json()
-      setModels(data)
+      // Sort models by provider name
+      const sortedData = [...data].sort((a, b) => {
+        const aProvider = extractProviderName(a.model_id, a.provider)
+        const bProvider = extractProviderName(b.model_id, b.provider)
+        if (aProvider !== bProvider) {
+          return aProvider.localeCompare(bProvider)
+        }
+        // If same provider, sort by name
+        return a.name.localeCompare(b.name)
+      })
+      setModels(sortedData)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load models')
       console.error('Error loading models:', err)
@@ -88,8 +144,18 @@ export function ModelManagement() {
       setLoadingOpenRouter(true)
       setOpenRouterError(null)
       const models = await getOpenRouterModels()
-      setOpenRouterModels(models)
-      if (models.length === 0) {
+      // Sort OpenRouter models by provider name
+      const sortedModels = [...models].sort((a, b) => {
+        const aProvider = extractProviderName(a.id, 'openrouter')
+        const bProvider = extractProviderName(b.id, 'openrouter')
+        if (aProvider !== bProvider) {
+          return aProvider.localeCompare(bProvider)
+        }
+        // If same provider, sort by name
+        return a.name.localeCompare(b.name)
+      })
+      setOpenRouterModels(sortedModels)
+      if (sortedModels.length === 0) {
         setOpenRouterError("No free models found. Make sure OPENROUTER_API_KEY is configured correctly.")
       }
     } catch (err) {
@@ -182,6 +248,46 @@ export function ModelManagement() {
     }
   }
 
+  // Merge and sort all models (database + OpenRouter) by provider
+  const getAllModelsSorted = () => {
+    // Get set of model_ids that are already in the database
+    const databaseModelIds = new Set(models.map(m => m.model_id))
+    
+    // Convert OpenRouter models to the same format as database models
+    // Only include OpenRouter models that are NOT already in the database
+    const openRouterModelsFormatted: (Model & { isFromOpenRouter: boolean; openRouterModel?: OpenRouterModel })[] = openRouterModels
+      .filter(orm => !databaseModelIds.has(orm.id))
+      .map(orm => ({
+        id: orm.id,
+        model_id: orm.id,
+        provider: 'openrouter' as const,
+        name: cleanModelName(orm.name),
+        description: orm.description,
+        is_free: true,
+        is_active: false, // OpenRouter models not in database are not enabled
+        isFromOpenRouter: true,
+        openRouterModel: orm
+      }))
+
+    // Merge database models and OpenRouter models (excluding duplicates)
+    // Clean model names for database models too
+    const allModels = [
+      ...models.map(m => ({ ...m, name: cleanModelName(m.name), isFromOpenRouter: false as const })),
+      ...openRouterModelsFormatted
+    ]
+
+    // Sort by provider name, then by model name
+    return allModels.sort((a, b) => {
+      const aProvider = extractProviderName(a.model_id, a.provider)
+      const bProvider = extractProviderName(b.model_id, b.provider)
+      if (aProvider !== bProvider) {
+        return aProvider.localeCompare(bProvider)
+      }
+      // If same provider, sort by name
+      return a.name.localeCompare(b.name)
+    })
+  }
+
   if (loading || loadingOpenRouter) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -190,6 +296,8 @@ export function ModelManagement() {
       </div>
     )
   }
+
+  const sortedAllModels = getAllModelsSorted()
 
   return (
     <div className="space-y-6">
@@ -221,7 +329,7 @@ export function ModelManagement() {
       </div>
 
       <div className="border rounded-lg">
-        {openRouterModels.length === 0 && models.filter(m => m.provider === 'gemini').length === 0 ? (
+        {sortedAllModels.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             No models available. Make sure OPENROUTER_API_KEY is configured correctly.
           </div>
@@ -237,56 +345,42 @@ export function ModelManagement() {
                 </tr>
               </thead>
               <tbody>
-                {/* Gemini models first */}
-                {models
-                  .filter(m => m.provider === 'gemini')
-                  .map((model) => (
+                {sortedAllModels.map((model) => {
+                  const providerName = extractProviderName(model.model_id, model.provider)
+                  const isToggling = model.isFromOpenRouter ? togglingModels.has(model.model_id) : false
+                  
+                  return (
                     <tr key={model.id} className="border-b hover:bg-muted/50">
                       <td className="p-3">
                         <div className="font-medium">{model.name}</div>
                       </td>
                       <td className="p-3">
-                        <div className="text-sm capitalize">{model.provider}</div>
+                        <div className="text-sm capitalize">{providerName}</div>
                       </td>
                       <td className="p-3">
                         <div className="text-sm">{model.is_free ? 'Yes' : 'No'}</div>
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-end">
-                          <Switch
-                            checked={model.is_active}
-                            onCheckedChange={() => toggleModelActive(model)}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                
-                {/* OpenRouter models */}
-                {openRouterModels.map((openRouterModel) => {
-                  const isEnabled = isModelEnabled(openRouterModel.id)
-                  const isToggling = togglingModels.has(openRouterModel.id)
-                  
-                  return (
-                    <tr key={openRouterModel.id} className="border-b hover:bg-muted/50">
-                      <td className="p-3">
-                        <div className="font-medium">{openRouterModel.name}</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-sm">OpenRouter</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="text-sm">Yes</div>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-end">
-                          {isToggling ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          {model.isFromOpenRouter ? (
+                            isToggling ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            ) : (
+                              <Switch
+                                checked={model.is_active}
+                                onCheckedChange={(checked) => {
+                                  const openRouterModel = openRouterModels.find(orm => orm.id === model.model_id)
+                                  if (openRouterModel) {
+                                    toggleModel(openRouterModel, checked)
+                                  }
+                                }}
+                                disabled={isToggling}
+                              />
+                            )
                           ) : (
                             <Switch
-                              checked={isEnabled}
-                              onCheckedChange={(checked) => toggleModel(openRouterModel, checked)}
-                              disabled={isToggling}
+                              checked={model.is_active}
+                              onCheckedChange={() => toggleModelActive(model as Model)}
                             />
                           )}
                         </div>
