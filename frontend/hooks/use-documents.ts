@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { uploadDocument, deleteDocument, getAdminStats } from '@/lib/api/backend'
+import { uploadDocument, uploadWebsite, deleteDocument, getAdminStats } from '@/lib/api/backend'
 import { DocumentUploadResponse, DocumentDeleteResponse } from '@/types/document'
 
 export function useDocuments() {
@@ -17,6 +17,22 @@ export function useDocuments() {
       return response
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload document'
+      setError(errorMessage)
+      return null
+    } finally {
+      setUploading(false)
+    }
+  }, [])
+
+  const uploadWebsiteUrl = useCallback(async (url: string): Promise<DocumentUploadResponse | null> => {
+    setUploading(true)
+    setError(null)
+
+    try {
+      const response = await uploadWebsite(url)
+      return response
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to upload website'
       setError(errorMessage)
       return null
     } finally {
@@ -50,6 +66,7 @@ export function useDocuments() {
 
   return {
     upload,
+    uploadWebsite: uploadWebsiteUrl,
     remove,
     getStats,
     uploading,

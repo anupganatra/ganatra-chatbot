@@ -117,14 +117,15 @@ class QdrantService:
         Args:
             query_embedding: Query embedding vector
             top_k: Number of results to return
-            score_threshold: Minimum similarity score
+            score_threshold: Minimum similarity score (None to use default, or set to 0 to disable)
             document_id: Optional filter by document ID
         
         Returns:
             List of search results with 'text', 'metadata', and 'score'
         """
         top_k = top_k or settings.TOP_K
-        score_threshold = score_threshold or settings.SIMILARITY_THRESHOLD
+        # Use provided threshold, or default from settings, but allow None to disable
+        use_threshold = score_threshold if score_threshold is not None else settings.SIMILARITY_THRESHOLD
         
         # Build filter if document_id is provided
         query_filter = None
@@ -139,30 +140,99 @@ class QdrantService:
             )
         
         try:
-            results = self.client.query_points(
-                collection_name=self.collection_name,
-                query=query_embedding,     # vector
-                limit=top_k,
-                score_threshold=score_threshold,
-                query_filter=query_filter
-            )
+            # Build query parameters
+            query_params = {
+                "collection_name": self.collection_name,
+                "query": query_embedding,
+                "limit": top_k,
+                "query_filter": query_filter
+            }
+            
+            # Only add score_threshold if it's set (not None and not 0)
+            # For cosine similarity, threshold of 0 means no filtering
+            if use_threshold and use_threshold > 0:
+                query_params["score_threshold"] = use_threshold
+            
+            results = self.client.query_points(**query_params)
+            
+            # Handle different response formats
+            points = []
+            if hasattr(results, 'points'):
+                points = results.points
+            elif isinstance(results, (list, tuple)):
+                points = results
+            elif hasattr(results, '__iter__'):
+                points = list(results)
             
             formatted_results = []
-            for result in results.points:
+            for result in points:
+                # Handle different result object formats
+                if hasattr(result, 'payload') and hasattr(result, 'score'):
+                    # Standard Qdrant result object
+                    payload = result.payload
+                    score = result.score
+                elif isinstance(result, dict):
+                    # Dictionary format
+                    payload = result.get('payload', result)
+                    score = result.get('score', 0.0)
+                else:
+                    continue
+                
+                text = payload.get("text", "") if isinstance(payload, dict) else getattr(payload, 'text', '')
+                if not text:
+                    continue
+                
                 formatted_results.append({
-                    "text": result.payload.get("text", ""),
+                    "text": text,
                     "metadata": {
-                        "document_id": result.payload.get("document_id"),
-                        "filename": result.payload.get("filename"),
-                        "chunk_index": result.payload.get("chunk_index"),
-                        "score": result.score
+                        "document_id": payload.get("document_id") if isinstance(payload, dict) else getattr(payload, 'document_id', None),
+                        "filename": payload.get("filename") if isinstance(payload, dict) else getattr(payload, 'filename', ''),
+                        "chunk_index": payload.get("chunk_index") if isinstance(payload, dict) else getattr(payload, 'chunk_index', None),
+                        "score": score
                     },
-                    "score": result.score
+                    "score": score
                 })
+            
+            # If no results with threshold, try without threshold (lower threshold)
+            if not formatted_results and use_threshold and use_threshold > 0:
+                print(f"⚠️ No results with threshold {use_threshold}, trying with lower threshold (0.5)...")
+                query_params_lower = query_params.copy()
+                query_params_lower["score_threshold"] = 0.5
+                results_lower = self.client.query_points(**query_params_lower)
+                
+                points_lower = []
+                if hasattr(results_lower, 'points'):
+                    points_lower = results_lower.points
+                elif isinstance(results_lower, (list, tuple)):
+                    points_lower = results_lower
+                
+                for result in points_lower:
+                    if hasattr(result, 'payload') and hasattr(result, 'score'):
+                        payload = result.payload
+                        score = result.score
+                    elif isinstance(result, dict):
+                        payload = result.get('payload', result)
+                        score = result.get('score', 0.0)
+                    else:
+                        continue
+                    
+                    text = payload.get("text", "") if isinstance(payload, dict) else getattr(payload, 'text', '')
+                    if text:
+                        formatted_results.append({
+                            "text": text,
+                            "metadata": {
+                                "document_id": payload.get("document_id") if isinstance(payload, dict) else getattr(payload, 'document_id', None),
+                                "filename": payload.get("filename") if isinstance(payload, dict) else getattr(payload, 'filename', ''),
+                                "chunk_index": payload.get("chunk_index") if isinstance(payload, dict) else getattr(payload, 'chunk_index', None),
+                                "score": score
+                            },
+                            "score": score
+                        })
             
             return formatted_results
         
         except Exception as e:
+            print(f"❌ Error in Qdrant search: {str(e)}")
             raise ValueError(f"Error searching: {str(e)}")
     
     def delete_document(self, document_id: str) -> int:

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { getAdminDocuments } from "@/lib/api/backend"
 import { useDocuments } from "@/hooks/use-documents"
 import type { DocumentInfo } from "@/types/document"
-import { RefreshCw, Trash2, FileText, Calendar, Layers, HardDrive } from "lucide-react"
+import { RefreshCw, Trash2, FileText, Calendar, Layers, HardDrive, Globe } from "lucide-react"
 
 // Cache configuration
 const CACHE_KEY_DOCUMENTS = 'admin_documents_cache'
@@ -150,6 +150,26 @@ export default function DocumentList() {
     }
   }
 
+  const isWebsiteUrl = (filename: string): boolean => {
+    return filename.startsWith('http://') || filename.startsWith('https://') || filename.includes('(') && filename.includes('http')
+  }
+
+  const getSourceIcon = (filename: string) => {
+    return isWebsiteUrl(filename) ? Globe : FileText
+  }
+
+  const getDisplayName = (filename: string): string => {
+    if (isWebsiteUrl(filename)) {
+      // Extract URL from format like "Title (https://example.com)"
+      const match = filename.match(/\(https?:\/\/[^)]+\)/)
+      if (match) {
+        return match[0].slice(1, -1) // Remove parentheses
+      }
+      return filename
+    }
+    return filename
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -183,22 +203,34 @@ export default function DocumentList() {
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <FileText className="h-12 w-12 text-muted-foreground/50 mb-3" />
           <p className="text-sm font-medium">No documents yet</p>
-          <p className="text-xs text-muted-foreground">Upload a PDF to get started</p>
+          <p className="text-xs text-muted-foreground">Upload a PDF or add a website URL to get started</p>
         </div>
       ) : (
         <div className="space-y-3">
-          {documents.map((doc) => (
+          {documents.map((doc) => {
+            const SourceIcon = getSourceIcon(doc.filename)
+            const displayName = getDisplayName(doc.filename)
+            const isWebsite = isWebsiteUrl(doc.filename)
+            
+            return (
             <div
               key={doc.id}
               className="flex items-start gap-4 p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-                <FileText className="h-5 w-5 text-primary" />
+                <SourceIcon className="h-5 w-5 text-primary" />
               </div>
 
               <div className="flex-1 min-w-0 space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="font-medium truncate">{doc.filename}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate" title={displayName}>{displayName}</p>
+                    {isWebsite && (
+                      <Badge variant="outline" className="mt-1 text-xs">
+                        Website
+                      </Badge>
+                    )}
+                  </div>
                   <Badge variant="secondary" className={getStatusColor(doc.status)}>
                     {doc.status}
                   </Badge>
@@ -236,7 +268,8 @@ export default function DocumentList() {
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

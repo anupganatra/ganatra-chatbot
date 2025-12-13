@@ -11,3 +11,4 @@ httpx>=0.26.0,<0.29.0
 python-multipart==0.0.20
 slowapi==0.1.9
 PyJWT==2.10.1
+beautifulsoup4==4.12.3

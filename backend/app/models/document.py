@@ -1,7 +1,12 @@
 """Pydantic models for document operations."""
 from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
+
+
+class WebsiteUploadRequest(BaseModel):
+    """Request model for website URL upload."""
+    url: str = Field(..., description="Website URL to scrape and process")
 
 
 class DocumentUploadResponse(BaseModel):

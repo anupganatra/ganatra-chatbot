@@ -135,6 +135,23 @@ export async function uploadDocument(file: File): Promise<DocumentUploadResponse
   return response.json()
 }
 
+export async function uploadWebsite(url: string): Promise<DocumentUploadResponse> {
+  const headers = await getAuthHeaders()
+  
+  const response = await fetch(`${BACKEND_URL}/documents/upload-url`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ url }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.detail || 'Failed to upload website')
+  }
+
+  return response.json()
+}
+
 export async function deleteDocument(documentId: string): Promise<DocumentDeleteResponse> {
   const headers = await getAuthHeaders()
   
