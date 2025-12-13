@@ -135,13 +135,35 @@ export async function uploadDocument(file: File): Promise<DocumentUploadResponse
   return response.json()
 }
 
-export async function uploadWebsite(url: string): Promise<DocumentUploadResponse> {
+export async function uploadWebsite(
+  url: string,
+  enableCrawl: boolean = false,
+  maxPages?: number,
+  maxDepth?: number
+): Promise<DocumentUploadResponse> {
   const headers = await getAuthHeaders()
+  
+  const body: {
+    url: string
+    enable_crawl?: boolean
+    max_pages?: number
+    max_depth?: number
+  } = { url }
+  
+  if (enableCrawl) {
+    body.enable_crawl = true
+    if (maxPages !== undefined) {
+      body.max_pages = maxPages
+    }
+    if (maxDepth !== undefined) {
+      body.max_depth = maxDepth
+    }
+  }
   
   const response = await fetch(`${BACKEND_URL}/documents/upload-url`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ url }),
+    body: JSON.stringify(body),
   })
 
   if (!response.ok) {

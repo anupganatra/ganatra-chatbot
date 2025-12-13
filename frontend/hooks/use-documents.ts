@@ -24,12 +24,17 @@ export function useDocuments() {
     }
   }, [])
 
-  const uploadWebsiteUrl = useCallback(async (url: string): Promise<DocumentUploadResponse | null> => {
+  const uploadWebsiteUrl = useCallback(async (
+    url: string,
+    enableCrawl: boolean = false,
+    maxPages?: number,
+    maxDepth?: number
+  ): Promise<DocumentUploadResponse | null> => {
     setUploading(true)
     setError(null)
 
     try {
-      const response = await uploadWebsite(url)
+      const response = await uploadWebsite(url, enableCrawl, maxPages, maxDepth)
       return response
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload website'

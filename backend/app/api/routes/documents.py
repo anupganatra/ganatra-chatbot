@@ -8,7 +8,7 @@ from app.services.qdrant import qdrant_service
 from app.services.embeddings import embedding_service
 from app.services.supabase_client import supabase_client
 from app.utils.pdf_processor import extract_text_from_pdf, validate_pdf_file
-from app.utils.web_scraper import extract_text_from_url
+from app.utils.web_scraper import extract_text_from_url, crawl_website
 from app.utils.chunking import chunk_text_with_metadata
 from app.middleware.rate_limit import limiter
 from app.config import settings
@@ -196,20 +196,49 @@ async def upload_website(
     try:
         start_time = time.time()
         url = website_request.url
+        enable_crawl = website_request.enable_crawl
+        max_pages = website_request.max_pages
+        max_depth = website_request.max_depth
         
-        # Extract text from website
+        # Extract text from website (single page or crawl)
         extraction_start = time.time()
-        print(f"🌐 Fetching content from {url}...")
-        text, page_title = extract_text_from_url(url)
-        print(f"⏱️  Website extraction: {time.time() - extraction_start:.2f}s")
+        page_count = 1
+        page_title = None
+        
+        if enable_crawl:
+            print(f"🕷️  Crawling website from {url} (max_pages={max_pages}, max_depth={max_depth})...")
+            crawled_pages = crawl_website(url, max_pages=max_pages, max_depth=max_depth)
+            page_count = len(crawled_pages)
+            
+            # Combine text from all pages
+            text_parts = []
+            titles = []
+            for page_url, page_text, page_title_item in crawled_pages:
+                text_parts.append(f"\n\n--- Page: {page_url} ---\n\n{page_text}")
+                if page_title_item and page_title_item != page_url:
+                    titles.append(page_title_item)
+            
+            text = "\n".join(text_parts)
+            page_title = titles[0] if titles else url
+            
+            print(f"⏱️  Website crawl: {time.time() - extraction_start:.2f}s ({page_count} pages)")
+        else:
+            print(f"🌐 Fetching content from {url}...")
+            text, page_title = extract_text_from_url(url)
+            print(f"⏱️  Website extraction: {time.time() - extraction_start:.2f}s")
         
         # Generate document ID
         document_id = str(uuid.uuid4())
         
         # Use URL as filename, or page title if available
-        filename = url
-        if page_title and page_title != url:
-            filename = f"{page_title} ({url})"
+        if enable_crawl:
+            filename = f"{url} ({page_count} pages)"
+            if page_title and page_title != url:
+                filename = f"{page_title} - {url} ({page_count} pages)"
+        else:
+            filename = url
+            if page_title and page_title != url:
+                filename = f"{page_title} ({url})"
         
         # Chunk text
         chunking_start = time.time()
@@ -282,7 +311,7 @@ async def upload_website(
                 filename=filename,
                 uploader_id=current_user.id if hasattr(current_user, 'id') else None,
                 chunks_count=chunks_created,
-                page_count=1,  # Single page for now
+                page_count=page_count,
                 file_size=len(text.encode('utf-8')),  # Approximate size in bytes
                 status="active"
             )
@@ -308,12 +337,13 @@ async def upload_website(
         total_time = time.time() - start_time
         print(f"✅ Total upload time: {total_time:.2f}s")
         
+        crawl_msg = f" ({page_count} pages crawled)" if enable_crawl else ""
         return DocumentUploadResponse(
             document_id=document_id,
             filename=filename,
             status="success",
             chunks_created=chunks_created,
-            message=f"Website processed successfully. Created {chunks_created} chunks."
+            message=f"Website processed successfully{crawl_msg}. Created {chunks_created} chunks."
         )
     
     except ValueError as e:

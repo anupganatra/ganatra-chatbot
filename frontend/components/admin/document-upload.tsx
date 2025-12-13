@@ -5,6 +5,8 @@ import type React from "react"
 import { useState, type ChangeEvent, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Upload, File, X, Loader2, Globe, Link2 } from "lucide-react"
 import { useDocuments } from "@/hooks/use-documents"
@@ -12,6 +14,9 @@ import { useDocuments } from "@/hooks/use-documents"
 export function DocumentUpload() {
   const [file, setFile] = useState<File | null>(null)
   const [url, setUrl] = useState<string>("")
+  const [enableCrawl, setEnableCrawl] = useState<boolean>(false)
+  const [maxPages, setMaxPages] = useState<number>(10)
+  const [maxDepth, setMaxDepth] = useState<number>(2)
   const [dragActive, setDragActive] = useState(false)
   const [activeTab, setActiveTab] = useState<"pdf" | "website">("pdf")
   const { upload, uploadWebsite, uploading, error } = useDocuments()
@@ -73,9 +78,17 @@ export function DocumentUpload() {
         return
       }
 
-      const result = await uploadWebsite(url.trim())
+      const result = await uploadWebsite(
+        url.trim(),
+        enableCrawl,
+        enableCrawl ? maxPages : undefined,
+        enableCrawl ? maxDepth : undefined
+      )
       if (result) {
         setUrl("")
+        setEnableCrawl(false)
+        setMaxPages(10)
+        setMaxDepth(2)
         
         // Dispatch event to notify DocumentList to invalidate cache and refresh
         window.dispatchEvent(new CustomEvent('document-uploaded'))
@@ -175,6 +188,77 @@ export function DocumentUpload() {
               </p>
             )}
           </div>
+
+          <div className="space-y-4 pt-2 border-t">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="enable-crawl" className="text-sm font-medium">
+                  Crawl multiple pages
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Follow links to crawl multiple pages from the same domain
+                </p>
+              </div>
+              <Switch
+                id="enable-crawl"
+                checked={enableCrawl}
+                onCheckedChange={setEnableCrawl}
+                disabled={uploading}
+              />
+            </div>
+
+            {enableCrawl && (
+              <div className="space-y-4 pl-4 border-l-2">
+                <div className="space-y-2">
+                  <Label htmlFor="max-pages" className="text-sm font-medium">
+                    Max pages
+                  </Label>
+                  <Input
+                    id="max-pages"
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={maxPages}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value, 10)
+                      if (!isNaN(value) && value >= 1 && value <= 100) {
+                        setMaxPages(value)
+                      }
+                    }}
+                    disabled={uploading}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Maximum number of pages to crawl (1-100)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="max-depth" className="text-sm font-medium">
+                    Max depth
+                  </Label>
+                  <Input
+                    id="max-depth"
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={maxDepth}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value, 10)
+                      if (!isNaN(value) && value >= 1 && value <= 5) {
+                        setMaxDepth(value)
+                      }
+                    }}
+                    disabled={uploading}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Maximum depth to crawl from the base URL (1-5)
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -195,6 +279,8 @@ export function DocumentUpload() {
           <p className="text-xs text-muted-foreground text-center">
             {activeTab === "pdf" 
               ? "Large files may take several minutes to process. Please don't close this page."
+              : enableCrawl
+              ? `Crawling up to ${maxPages} pages at depth ${maxDepth}. This may take several minutes. Please don't close this page.`
               : "This may take a few moments. Please don't close this page."}
           </p>
         </div>
