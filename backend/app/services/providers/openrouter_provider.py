@@ -27,7 +27,7 @@ class OpenRouterProvider(BaseLLMProvider):
         prompt = self._build_prompt(query, context)
         
         messages = [
-            {"role": "system", "content": "You are a helpful AI assistant that answers questions based on the provided context documents."},
+            {"role": "system", "content": "You are a helpful AI assistant that answers questions based ONLY on the provided context documents. If the context does not contain enough information to answer the question, ONLY say that you couldn't find the information in the provided documents. Do NOT provide general answers or use your own knowledge."},
             {"role": "user", "content": prompt}
         ]
         
@@ -65,7 +65,7 @@ class OpenRouterProvider(BaseLLMProvider):
         prompt = self._build_prompt(query, context)
         
         messages = [
-            {"role": "system", "content": "You are a helpful AI assistant that answers questions based on the provided context documents."},
+            {"role": "system", "content": "You are a helpful AI assistant that answers questions based ONLY on the provided context documents. If the context does not contain enough information to answer the question, ONLY say that you couldn't find the information in the provided documents. Do NOT provide general answers or use your own knowledge."},
             {"role": "user", "content": prompt}
         ]
         
@@ -116,10 +116,10 @@ class OpenRouterProvider(BaseLLMProvider):
     
     def _build_prompt(self, query: str, context: List[Dict[str, str]] = None) -> str:
         """Build prompt with context for RAG."""
-        system_prompt = """You are a helpful AI assistant that answers questions based on the provided context documents.
+        system_prompt = """You are a helpful AI assistant that answers questions based ONLY on the provided context documents.
 
 If the context contains relevant information, use it to answer the question accurately.
-If the context doesn't contain enough information, say so and provide a general answer if possible.
+If the context does NOT contain enough information to answer the question, ONLY say that you couldn't find the information in the provided documents. Do NOT provide general answers or use your own knowledge.
 Always cite which document or source you're using when referencing information from the context.
 
 Be concise, accurate, and helpful."""

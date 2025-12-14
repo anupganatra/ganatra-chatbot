@@ -241,11 +241,12 @@ class QdrantService:
                     "score": score
                 })
             
-            # If no results with threshold, try without threshold (lower threshold)
+            # If no results with threshold, try with a slightly lower threshold (0.6 instead of 0.5)
+            # This provides a small buffer while still maintaining quality
             if not formatted_results and use_threshold and use_threshold > 0:
-                print(f"⚠️ No results with threshold {use_threshold}, trying with lower threshold (0.5)...")
+                print(f"⚠️ No results with threshold {use_threshold}, trying with lower threshold (0.6)...")
                 query_params_lower = query_params.copy()
-                query_params_lower["score_threshold"] = 0.5
+                query_params_lower["score_threshold"] = 0.6
                 results_lower = self.client.query_points(**query_params_lower)
                 
                 points_lower = []

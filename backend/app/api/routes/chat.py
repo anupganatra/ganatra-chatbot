@@ -45,6 +45,13 @@ async def chat(
             tenant_id=tenant_id
         )
         
+        # Filter out low-quality results (similarity score < 0.6)
+        # This prevents the LLM from generating answers based on irrelevant context
+        MIN_SIMILARITY_SCORE = 0.6
+        if context:
+            filtered_context = [c for c in context if c.get('score', 0) >= MIN_SIMILARITY_SCORE]
+            context = filtered_context if filtered_context else []
+        
         if not context:
             return ChatResponse(
                 response="I couldn't find relevant information in the documents to answer your question. Please try rephrasing or ask about something else.",
@@ -120,10 +127,16 @@ async def chat_stream(
             tenant_id=tenant_id
         )
         
+        # Filter out low-quality results (similarity score < 0.6)
+        MIN_SIMILARITY_SCORE = 0.6
+        if context:
+            filtered_context = [c for c in context if c.get('score', 0) >= MIN_SIMILARITY_SCORE]
+            context = filtered_context if filtered_context else []
+        
         async def generate():
             if not context:
                 yield "data: {0}\n\n".format(json.dumps({
-                    "content": "I couldn't find relevant information in the documents.",
+                    "content": "I couldn't find relevant information in the documents to answer your question. Please try rephrasing or ask about something else.",
                     "done": True
                 }))
                 return
