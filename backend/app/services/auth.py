@@ -84,10 +84,14 @@ class AuthService:
                     print(f"User {user_id} cannot login: no active tenant")
                     return None
                 
+                # Extract full_name from user_metadata
+                full_name = user_metadata.get('full_name')
+                
                 return User(
                     id=user.id,
                     email=user.email or "",
-                    role=role
+                    role=role,
+                    fullName=full_name
                 )
             
             return None

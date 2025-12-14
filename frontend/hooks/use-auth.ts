@@ -83,7 +83,15 @@ export function useAuth() {
       data: { full_name: data.fullName }
     })
     if (!error) {
-      setUser(prev => prev ? { ...prev, fullName: data.fullName } : null)
+      // Refresh user data from backend to ensure consistency
+      try {
+        const backendUser = await getCurrentUser()
+        setUser(backendUser)
+      } catch (err) {
+        // If backend refresh fails, update local state as fallback
+        console.error('Error refreshing user from backend:', err)
+        setUser(prev => prev ? { ...prev, fullName: data.fullName } : null)
+      }
     }
     return { error }
   }, [supabase])
