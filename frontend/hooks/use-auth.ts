@@ -12,6 +12,7 @@ export function useAuth() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
   const initializedRef = useRef(false)
+  const fetchingUserRef = useRef(false)
 
   useEffect(() => {
     // Prevent double initialization in React StrictMode
@@ -23,8 +24,12 @@ export function useAuth() {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session?.user) {
-        // Verify with backend that user is allowed to log in (not deactivated)
+        // Prevent multiple simultaneous fetches
+        if (fetchingUserRef.current) return
+        fetchingUserRef.current = true
+        
         try {
+          // Verify with backend that user is allowed to log in (not deactivated)
           const backendUser = await getCurrentUser()
           // User is allowed, use backend user data (which has verified role)
           setUser(backendUser)
@@ -35,6 +40,8 @@ export function useAuth() {
           await supabase.auth.signOut()
           setUser(null)
           setLoading(false)
+        } finally {
+          fetchingUserRef.current = false
         }
       } else {
         setUser(null)
@@ -47,8 +54,13 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
-          // Verify with backend that user is allowed to log in (not deactivated)
+          // Prevent multiple simultaneous fetches
+          if (fetchingUserRef.current) return
+          fetchingUserRef.current = true
+          
           try {
+            // Verify with backend that user is allowed to log in (not deactivated)
+            // getCurrentUser() already has deduplication, but this prevents multiple listeners from trying
             const backendUser = await getCurrentUser()
             // User is allowed, use backend user data (which has verified role)
             setUser(backendUser)
@@ -59,10 +71,13 @@ export function useAuth() {
             await supabase.auth.signOut()
             setUser(null)
             setLoading(false)
+          } finally {
+            fetchingUserRef.current = false
           }
         } else {
           setUser(null)
           setLoading(false)
+          fetchingUserRef.current = false
         }
       }
     )

@@ -105,17 +105,11 @@ export function LoginForm() {
 
       if (error) throw error
 
-      // Verify with backend that user is allowed to log in (not deactivated)
-      try {
-        await getCurrentUser()
-        // User is allowed to log in, proceed
-        router.push('/chat')
-        router.refresh()
-      } catch (backendError) {
-        // Backend rejected the user (likely deactivated), sign them out
-        await supabase.auth.signOut()
-        setError('Your account has been deactivated. Please contact an administrator.')
-      }
+      // Don't call getCurrentUser here - let onAuthStateChange in useAuth handle it
+      // This prevents duplicate calls since multiple components use useAuth
+      // The onAuthStateChange listener will verify the user is allowed to log in
+      router.push('/chat')
+      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

@@ -19,20 +19,38 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   }
 }
 
-export async function getCurrentUser(): Promise<User> {
-  const headers = await getAuthHeaders()
-  
-  const response = await fetch(`${BACKEND_URL}/auth/me`, {
-    method: 'GET',
-    headers,
-  })
+// Request deduplication: track in-flight requests
+let currentUserPromise: Promise<User> | null = null
 
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.detail || 'Failed to get current user')
+export async function getCurrentUser(): Promise<User> {
+  // If there's already an in-flight request, return the same promise
+  if (currentUserPromise) {
+    return currentUserPromise
   }
 
-  return response.json()
+  // Create new request
+  currentUserPromise = (async () => {
+    try {
+      const headers = await getAuthHeaders()
+      
+      const response = await fetch(`${BACKEND_URL}/auth/me`, {
+        method: 'GET',
+        headers,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Failed to get current user')
+      }
+
+      return response.json()
+    } finally {
+      // Clear the promise after request completes (success or failure)
+      currentUserPromise = null
+    }
+  })()
+
+  return currentUserPromise
 }
 
 export async function getCurrentUserRole(): Promise<{ role: string }> {
