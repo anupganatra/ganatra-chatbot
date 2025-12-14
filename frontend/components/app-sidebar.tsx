@@ -5,6 +5,7 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
+import { getCurrentUserTenant } from "@/lib/api/backend"
 import { useChatHistory } from "@/hooks/use-chat-history"
 import {
   Sidebar,
@@ -240,6 +241,29 @@ export function AppSidebar() {
   } = useChatHistory()
   const currentConversationId = searchParams.get("conversation_id")
   const [reportBugOpen, setReportBugOpen] = useState(false)
+  const [companyName, setCompanyName] = useState<string | null>(null)
+
+  // Admin status is now set correctly in user.role by useAuth hook
+  // - super_admin: from user_metadata (instant)
+  // - admin: from user_tenants table (fast Supabase query)
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin"
+  const isSuperAdmin = user?.role === "super_admin"
+
+  // Fetch company name for non-super-admin users
+  useEffect(() => {
+    if (user && !isSuperAdmin) {
+      getCurrentUserTenant()
+        .then((data) => {
+          setCompanyName(data.tenant_name)
+        })
+        .catch((err) => {
+          console.error('Error fetching tenant name:', err)
+          setCompanyName(null)
+        })
+    } else if (user && isSuperAdmin) {
+      setCompanyName(null)
+    }
+  }, [user, isSuperAdmin])
 
   useEffect(() => {
     if (currentConversationId) {
@@ -267,7 +291,6 @@ export function AppSidebar() {
   const userInitial = user?.email?.charAt(0).toUpperCase() || "A"
   const userName = user?.fullName || user?.email?.split("@")[0] || "User"
   const userEmail = user?.email || "demo@example.com"
-  const isAdmin = user?.role === "admin"
 
   const handleAdmin = () => {
     router.push("/admin")
@@ -311,7 +334,9 @@ export function AppSidebar() {
     <>
       <Sidebar collapsible="offcanvas" className="border-r">
         <SidebarHeader className="flex flex-row items-center justify-between px-4 py-3">
-          <h1 className="text-xl font-semibold tracking-tight">Ganatra</h1>
+          <h1 className="text-xl font-semibold tracking-tight">
+            {isSuperAdmin ? "Ganatra" : (companyName || "Ganatra")}
+          </h1>
           <SidebarToggleButton />
         </SidebarHeader>
 

@@ -6,7 +6,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from app.config import settings
-from app.api.routes import chat, documents, admin, models
+from app.api.routes import chat, documents, admin, models, tenants, auth
 from app.middleware.rate_limit import limiter
 
 # Create FastAPI app
@@ -31,10 +31,12 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(documents.router)
 app.include_router(admin.router)
 app.include_router(models.router)
+app.include_router(tenants.router)
 
 
 @app.get("/")

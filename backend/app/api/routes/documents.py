@@ -3,7 +3,7 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request
 from app.models.document import DocumentUploadResponse, DocumentDeleteResponse, WebsiteUploadRequest
 from app.models.user import User
-from app.api.dependencies import get_current_admin_user
+from app.api.dependencies import get_current_admin_user, get_current_user_tenant
 from app.services.qdrant import qdrant_service
 from app.services.embeddings import embedding_service
 from app.services.supabase_client import supabase_client
@@ -23,7 +23,8 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 async def upload_document(
     request: Request,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_current_admin_user),
+    tenant_id: str = Depends(get_current_user_tenant)
 ):
     """
     Upload and process a PDF document.
@@ -127,6 +128,7 @@ async def upload_document(
                 uploader_id=current_user.id if hasattr(current_user, 'id') else None,
                 chunks_count=chunks_created,
                 page_count=page_count,
+                tenant_id=tenant_id,
                 file_size=len(file_bytes),
                 status="active"
             )
@@ -134,7 +136,7 @@ async def upload_document(
         except Exception as e:
             # Compensating rollback: try to delete the points we just added to Qdrant.
             try:
-                qdrant_service.delete_document(document_id)
+                qdrant_service.delete_document(document_id, tenant_id=tenant_id)
             except Exception:
                 # Don't expose internal Qdrant errors to the client; log and surface a concise message.
                 raise HTTPException(
@@ -180,7 +182,8 @@ async def upload_document(
 async def upload_website(
     request: Request,
     website_request: WebsiteUploadRequest,
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_current_admin_user),
+    tenant_id: str = Depends(get_current_user_tenant)
 ):
     """
     Upload and process a website URL.
@@ -293,7 +296,8 @@ async def upload_website(
             chunks_created = qdrant_service.upsert_chunks(
                 chunks=chunks,
                 embeddings=embeddings,
-                document_id=document_id
+                document_id=document_id,
+                tenant_id=tenant_id
             )
             print(f"⏱️  Qdrant upsert: {time.time() - qdrant_start:.2f}s ({chunks_created} chunks)")
         except Exception as e:
@@ -312,6 +316,7 @@ async def upload_website(
                 uploader_id=current_user.id if hasattr(current_user, 'id') else None,
                 chunks_count=chunks_created,
                 page_count=page_count,
+                tenant_id=tenant_id,
                 file_size=len(text.encode('utf-8')),  # Approximate size in bytes
                 status="active"
             )
@@ -319,7 +324,7 @@ async def upload_website(
         except Exception as e:
             # Compensating rollback: try to delete the points we just added to Qdrant.
             try:
-                qdrant_service.delete_document(document_id)
+                qdrant_service.delete_document(document_id, tenant_id=tenant_id)
             except Exception:
                 # Don't expose internal Qdrant errors to the client; log and surface a concise message.
                 raise HTTPException(
@@ -366,25 +371,27 @@ async def upload_website(
 async def delete_document(
     request: Request,
     document_id: str,
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_current_admin_user),
+    tenant_id: str = Depends(get_current_user_tenant)
 ):
     """
-    Delete a document and all its chunks.
+    Delete a document and all its chunks (tenant-scoped).
     
     Args:
         request: FastAPI request object
         document_id: Document ID to delete
         current_user: Current authenticated admin user
+        tenant_id: Current user's tenant ID
     
     Returns:
         DocumentDeleteResponse with deletion status
     """
     try:
-        chunks_deleted = qdrant_service.delete_document(document_id)
+        chunks_deleted = qdrant_service.delete_document(document_id, tenant_id=tenant_id)
 
-        # Delete metadata row in Supabase
+        # Delete metadata row in Supabase (RLS will verify tenant ownership)
         try:
-            supabase_client.delete_metadata(document_id)
+            supabase_client.delete_metadata(document_id, tenant_id=tenant_id)
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -401,6 +408,38 @@ async def delete_document(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting document: {str(e)}"
+        )
+
+
+@router.get("", response_model=list)
+@limiter.limit("30/minute")
+async def get_documents(
+    request: Request,
+    offset: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_admin_user),
+    tenant_id: str = Depends(get_current_user_tenant)
+):
+    """
+    Get list of documents for the current user's tenant.
+    
+    Args:
+        request: FastAPI request object
+        offset: Pagination offset
+        limit: Maximum number of documents to return
+        current_user: Current authenticated admin user
+        tenant_id: Current user's tenant ID
+    
+    Returns:
+        List of document metadata
+    """
+    try:
+        documents = supabase_client.list_documents(tenant_id=tenant_id, offset=offset, limit=limit)
+        return documents
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching documents: {str(e)}"
         )
 
 

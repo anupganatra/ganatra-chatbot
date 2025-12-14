@@ -53,6 +53,18 @@ class QdrantService:
                 # Don't raise here — lack of index will be surfaced during operations,
                 # but best-effort create above improves behavior for new deployments.
                 pass
+            
+            # Ensure there's a payload index on `tenant_id` to allow filtered operations
+            try:
+                self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name="tenant_id",
+                    field_schema="keyword",
+                    wait=True,
+                )
+            except Exception:
+                # Don't raise here — lack of index will be surfaced during operations
+                pass
         except Exception as e:
             print(f"Error ensuring collection exists: {e}")
     
@@ -60,7 +72,8 @@ class QdrantService:
         self,
         chunks: List[Dict],
         embeddings: List[List[float]],
-        document_id: str
+        document_id: str,
+        tenant_id: str
     ) -> int:
         """
         Upsert document chunks with embeddings.
@@ -69,6 +82,7 @@ class QdrantService:
             chunks: List of chunk dictionaries with 'text' and 'metadata'
             embeddings: List of embeddings for each chunk
             document_id: Document ID
+            tenant_id: Tenant ID
         
         Returns:
             Number of points upserted
@@ -87,6 +101,7 @@ class QdrantService:
                     payload={
                         "text": chunk["text"],
                         "document_id": document_id,
+                        "tenant_id": tenant_id,
                         "filename": chunk["metadata"]["filename"],
                         "chunk_index": chunk["metadata"]["chunk_index"],
                         "total_chunks": chunk["metadata"]["total_chunks"]
@@ -107,15 +122,17 @@ class QdrantService:
     def search(
         self,
         query_embedding: List[float],
+        tenant_id: str,
         top_k: int = None,
         score_threshold: float = None,
         document_id: Optional[str] = None
     ) -> List[Dict]:
         """
-        Search for similar chunks.
+        Search for similar chunks filtered by tenant.
         
         Args:
             query_embedding: Query embedding vector
+            tenant_id: Tenant ID to filter results
             top_k: Number of results to return
             score_threshold: Minimum similarity score (None to use default, or set to 0 to disable)
             document_id: Optional filter by document ID
@@ -127,17 +144,23 @@ class QdrantService:
         # Use provided threshold, or default from settings, but allow None to disable
         use_threshold = score_threshold if score_threshold is not None else settings.SIMILARITY_THRESHOLD
         
-        # Build filter if document_id is provided
-        query_filter = None
-        if document_id:
-            query_filter = Filter(
-                must=[
-                    FieldCondition(
-                        key="document_id",
-                        match=MatchValue(value=document_id)
-                    )
-                ]
+        # Build filter - always filter by tenant_id, optionally by document_id
+        filter_conditions = [
+            FieldCondition(
+                key="tenant_id",
+                match=MatchValue(value=tenant_id)
             )
+        ]
+        
+        if document_id:
+            filter_conditions.append(
+                FieldCondition(
+                    key="document_id",
+                    match=MatchValue(value=document_id)
+                )
+            )
+        
+        query_filter = Filter(must=filter_conditions) if filter_conditions else None
         
         try:
             # Build query parameters
@@ -235,29 +258,40 @@ class QdrantService:
             print(f"❌ Error in Qdrant search: {str(e)}")
             raise ValueError(f"Error searching: {str(e)}")
     
-    def delete_document(self, document_id: str) -> int:
+    def delete_document(self, document_id: str, tenant_id: Optional[str] = None) -> int:
         """
-        Delete all chunks for a document.
+        Delete all chunks for a document, optionally filtered by tenant.
         
         Args:
             document_id: Document ID to delete
+            tenant_id: Optional tenant ID to verify ownership
         
         Returns:
             Number of points deleted
         """
         try:
+            # Build filter conditions
+            filter_conditions = [
+                FieldCondition(
+                    key="document_id",
+                    match=MatchValue(value=document_id)
+                )
+            ]
+            
+            # Add tenant filter if provided
+            if tenant_id:
+                filter_conditions.append(
+                    FieldCondition(
+                        key="tenant_id",
+                        match=MatchValue(value=tenant_id)
+                    )
+                )
+            
             # First, get all points for this document. `scroll` may return different
             # shapes depending on client version/transport (tuple, object with `.points`, etc.)
             scroll_result = self.client.scroll(
                 collection_name=self.collection_name,
-                scroll_filter=Filter(
-                    must=[
-                        FieldCondition(
-                            key="document_id",
-                            match=MatchValue(value=document_id)
-                        )
-                    ]
-                ),
+                scroll_filter=Filter(must=filter_conditions),
                 limit=10000  # Adjust based on your needs
             )
 

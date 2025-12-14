@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/hooks/use-auth"
-import { getAdminStats } from "@/lib/api/backend"
+import { getAdminStats, getCurrentUserTenant } from "@/lib/api/backend"
 import { DocumentUpload } from "@/components/admin/document-upload"
 import DocumentList from "@/components/admin/document-list"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, FileText, Upload, BarChart3, Loader2, Cpu } from "lucide-react"
 import { ModelManagement } from "@/components/admin/model-management"
+import { TenantManagement } from "@/components/admin/tenant-management"
+import { TenantUsers } from "@/components/admin/tenant-users"
+import { Building2, Users as UsersIcon } from "lucide-react"
 
 interface AdminStats {
   total_documents: number
@@ -70,6 +73,38 @@ export default function AdminPage() {
   const [statsLoading, setStatsLoading] = useState(false)
   const [statsError, setStatsError] = useState<string | null>(null)
   const prevTabRef = useRef(activeTab)
+  const [userTenantId, setUserTenantId] = useState<string | null>(null)
+  const [tenantName, setTenantName] = useState<string | null>(null)
+  
+  // Check if user is super admin (has role 'super_admin' in metadata)
+  const isSuperAdmin = user?.role === 'super_admin'
+  
+  // Fetch user's tenant on mount (only for non-super admins)
+  useEffect(() => {
+    if (user && !isSuperAdmin) {
+      getCurrentUserTenant()
+        .then((data) => {
+          setUserTenantId(data.tenant_id)
+          setTenantName(data.tenant_name)
+        })
+        .catch((err) => {
+          console.error('Error fetching user tenant:', err)
+          setUserTenantId(null)
+          setTenantName(null)
+        })
+    } else if (user && isSuperAdmin) {
+      // Super admins don't have a tenant
+      setUserTenantId(null)
+      setTenantName(null)
+    }
+  }, [user, isSuperAdmin])
+
+  // Reset activeTab if it's "models" or "tenants" and user is not super admin
+  useEffect(() => {
+    if (!isSuperAdmin && (activeTab === "models" || activeTab === "tenants")) {
+      setActiveTab("documents")
+    }
+  }, [isSuperAdmin, activeTab])
 
   const fetchStats = useCallback(async (useCache: boolean = true, silent: boolean = false) => {
     // Try to load from cache first
@@ -140,7 +175,7 @@ export default function AdminPage() {
   }, [activeTab, fetchStats])
 
   useEffect(() => {
-    if (!loading && (!user || user.role !== "admin")) {
+    if (!loading && (!user || (user.role !== "admin" && user.role !== "super_admin"))) {
       router.push("/chat")
     }
   }, [user, loading, router])
@@ -156,7 +191,7 @@ export default function AdminPage() {
     )
   }
 
-  if (!user || user.role !== "admin") {
+  if (!user || (user.role !== "admin" && user.role !== "super_admin")) {
     return null
   }
 
@@ -169,10 +204,10 @@ export default function AdminPage() {
               <Button variant="ghost" size="icon" onClick={() => router.push("/chat")} className="shrink-0">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
-              <div>
-                <h1 className="text-xl font-semibold">Admin Dashboard</h1>
-                <p className="text-sm text-muted-foreground">Manage your knowledge base</p>
-              </div>
+                      <div>
+                        <h1 className="text-xl font-semibold">Admin Dashboard</h1>
+                        <p className="text-sm text-muted-foreground">Manage dashboard</p>
+                      </div>
             </div>
           </div>
         </div>
@@ -180,15 +215,29 @@ export default function AdminPage() {
 
       <main className="flex-1 container mx-auto px-4 py-6 max-w-6xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="inline-flex gap-1">
             <TabsTrigger value="documents" className="gap-2">
               <FileText className="h-4 w-4" />
               Documents
             </TabsTrigger>
-            <TabsTrigger value="models" className="gap-2">
-              <Cpu className="h-4 w-4" />
-              Models
-            </TabsTrigger>
+            {isSuperAdmin && (
+              <TabsTrigger value="models" className="gap-2">
+                <Cpu className="h-4 w-4" />
+                Models
+              </TabsTrigger>
+            )}
+            {isSuperAdmin && (
+              <TabsTrigger value="tenants" className="gap-2">
+                <Building2 className="h-4 w-4" />
+                Companies
+              </TabsTrigger>
+            )}
+            {!isSuperAdmin && (
+              <TabsTrigger value="users" className="gap-2">
+                <UsersIcon className="h-4 w-4" />
+                Users
+              </TabsTrigger>
+            )}
             <TabsTrigger value="analytics" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Analytics
@@ -237,38 +286,88 @@ export default function AdminPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="models" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Model Management</CardTitle>
-                <CardDescription>Configure which AI models are available to users</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ModelManagement />
-              </CardContent>
-            </Card>
-          </TabsContent>
+          {isSuperAdmin && (
+            <TabsContent value="models" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Model Management</CardTitle>
+                  <CardDescription>Configure which AI models are available to users</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ModelManagement />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {isSuperAdmin && (
+            <TabsContent value="tenants" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Company Management</CardTitle>
+                  <CardDescription>Manage companies (Super Admin only)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <TenantManagement />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
+
+          {!isSuperAdmin && (
+            <TabsContent value="users" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>User Management</CardTitle>
+                  <CardDescription>Manage users in your company</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {userTenantId ? (
+                    <TenantUsers tenantId={userTenantId} />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <UsersIcon className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                      <p className="text-sm font-medium">No company assigned</p>
+                      <p className="text-xs text-muted-foreground">
+                        Please contact a super admin to assign you to a company
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
 
           <TabsContent value="analytics" className="space-y-6">
-            {statsLoading && !stats && (
-              <div className="flex flex-col items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                <p className="text-sm text-muted-foreground">Loading analytics...</p>
-              </div>
-            )}
+            <Card>
+              <CardHeader>
+                <CardTitle>Analytics</CardTitle>
+                <CardDescription>
+                  {isSuperAdmin 
+                    ? "View analytics across all companies" 
+                    : "View analytics for your company"}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {statsLoading && !stats && (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+                    <p className="text-sm text-muted-foreground">Loading analytics...</p>
+                  </div>
+                )}
 
-            {statsError && (
-              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg">
-                {statsError}
-                <Button variant="link" size="sm" onClick={() => fetchStats(false, false)} className="ml-2 p-0 h-auto">
-                  Retry
-                </Button>
-              </div>
-            )}
+                {statsError && (
+                  <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-lg">
+                    {statsError}
+                    <Button variant="link" size="sm" onClick={() => fetchStats(false, false)} className="ml-2 p-0 h-auto">
+                      Retry
+                    </Button>
+                  </div>
+                )}
 
-            {(!statsLoading || stats) && (
-            <>
-            <div className="grid gap-4 md:grid-cols-3">
+                {(!statsLoading || stats) && (
+                <>
+                <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>Total Documents</CardDescription>
@@ -330,8 +429,10 @@ export default function AdminPage() {
                 </div>
               </CardContent>
             </Card> */}
-            </>
-            )}
+                </> 
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>

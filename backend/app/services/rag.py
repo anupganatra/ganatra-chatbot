@@ -12,15 +12,17 @@ class RAGService:
     def retrieve_context(
         self,
         query: str,
+        tenant_id: str,
         top_k: int = None,
         score_threshold: float = None,
         document_id: Optional[str] = None
     ) -> List[Dict]:
         """
-        Retrieve relevant context chunks for a query.
+        Retrieve relevant context chunks for a query, filtered by tenant.
         
         Args:
             query: User query
+            tenant_id: Tenant ID to filter results
             top_k: Number of chunks to retrieve
             score_threshold: Minimum similarity score
             document_id: Optional document filter
@@ -31,9 +33,10 @@ class RAGService:
         # Generate query embedding
         query_embedding = embedding_service.generate_query_embedding(query)
         
-        # Search Qdrant
+        # Search Qdrant with tenant filter
         results = qdrant_service.search(
             query_embedding=query_embedding,
+            tenant_id=tenant_id,
             top_k=top_k or settings.TOP_K,
             score_threshold=score_threshold or settings.SIMILARITY_THRESHOLD,
             document_id=document_id
@@ -44,15 +47,17 @@ class RAGService:
     def generate_answer(
         self,
         query: str,
+        tenant_id: str,
         context: Optional[List[Dict]] = None,
         stream: bool = False,
         model_id: Optional[str] = None
     ) -> str:
         """
-        Generate answer using RAG pipeline.
+        Generate answer using RAG pipeline, filtered by tenant.
         
         Args:
             query: User query
+            tenant_id: Tenant ID to filter results
             context: Optional pre-retrieved context
             stream: Whether to stream the response
             model_id: Optional model ID to use
@@ -62,7 +67,7 @@ class RAGService:
         """
         # Retrieve context if not provided
         if context is None:
-            context = self.retrieve_context(query)
+            context = self.retrieve_context(query, tenant_id=tenant_id)
         
         # Format context for LLM
         formatted_context = [
@@ -86,14 +91,16 @@ class RAGService:
     async def generate_answer_stream(
         self,
         query: str,
+        tenant_id: str,
         context: Optional[List[Dict]] = None,
         model_id: Optional[str] = None
     ):
         """
-        Generate streaming answer using RAG pipeline.
+        Generate streaming answer using RAG pipeline, filtered by tenant.
         
         Args:
             query: User query
+            tenant_id: Tenant ID to filter results
             context: Optional pre-retrieved context
             model_id: Optional model ID to use
         
@@ -102,7 +109,7 @@ class RAGService:
         """
         # Retrieve context if not provided
         if context is None:
-            context = self.retrieve_context(query)
+            context = self.retrieve_context(query, tenant_id=tenant_id)
         
         # Format context for LLM
         formatted_context = [

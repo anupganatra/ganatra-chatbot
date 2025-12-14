@@ -23,34 +23,42 @@ export function useAuth() {
       
       if (session?.user) {
         const userMetadata = session.user.user_metadata || {}
+        // Read role directly from user_metadata for all users
+        const role = userMetadata.role || 'user' // Default to 'user' if not set
+        
         setUser({
           id: session.user.id,
           email: session.user.email || '',
-          role: userMetadata.role || 'user',
+          role: role,
           fullName: userMetadata.full_name || ''
         })
+        setLoading(false)
       } else {
         setUser(null)
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     initializeAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         if (session?.user) {
           const userMetadata = session.user.user_metadata || {}
+          // Read role directly from user_metadata for all users
+          const role = userMetadata.role || 'user' // Default to 'user' if not set
+          
           setUser({
             id: session.user.id,
             email: session.user.email || '',
-            role: userMetadata.role || 'user',
+            role: role,
             fullName: userMetadata.full_name || ''
           })
+          setLoading(false)
         } else {
           setUser(null)
+          setLoading(false)
         }
-        setLoading(false)
       }
     )
 
@@ -61,6 +69,7 @@ export function useAuth() {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
+    setUser(null)
     router.push('/login')
   }, [supabase, router])
 
@@ -76,4 +85,3 @@ export function useAuth() {
 
   return { user, loading, signOut, updateUser }
 }
-

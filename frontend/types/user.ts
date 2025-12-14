@@ -1,12 +1,12 @@
 export interface User {
   id: string
   email: string
-  role: "admin" | "user"
+  role: "admin" | "user" | "super_admin"
   fullName?: string
 }
 
 export interface UserMetadata {
-  role?: "admin" | "user"
+  role?: "admin" | "user" | "super_admin"
   fullName?: string
 }
 

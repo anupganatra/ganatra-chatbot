@@ -23,6 +23,7 @@ class SupabaseClient:
         uploader_id: Optional[str],
         chunks_count: int,
         page_count: int,
+        tenant_id: str,
         file_size: int = 0,
         status: str = "active",
         storage_path: Optional[str] = None,
@@ -35,6 +36,7 @@ class SupabaseClient:
             "id": document_id,
             "filename": filename,
             "uploader_id": uploader_id,
+            "tenant_id": tenant_id,
             "uploaded_at": datetime.utcnow().isoformat(),
             "chunks_count": chunks_count,
             "page_count": page_count,
@@ -58,9 +60,15 @@ class SupabaseClient:
 
         return resp
 
-    def delete_metadata(self, document_id: str) -> Any:
-        """Delete metadata rows matching `document_id` and return the response."""
-        resp = self.supabase.table(self.table).delete().eq("id", document_id).execute()
+    def delete_metadata(self, document_id: str, tenant_id: Optional[str] = None) -> Any:
+        """Delete metadata rows matching `document_id` and optionally verify tenant ownership."""
+        query = self.supabase.table(self.table).delete().eq("id", document_id)
+        
+        # If tenant_id provided, verify ownership (RLS will also enforce this)
+        if tenant_id:
+            query = query.eq("tenant_id", tenant_id)
+        
+        resp = query.execute()
         error = getattr(resp, "error", None)
         if error:
             try:
@@ -71,17 +79,21 @@ class SupabaseClient:
 
         return resp
 
-    def list_documents(self, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
-        """List documents from the metadata table. Returns a list of rows."""
+    def list_documents(self, tenant_id: Optional[str] = None, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+        """List documents from the metadata table filtered by tenant_id. Returns a list of rows.
+        If tenant_id is None, returns all documents (for super admins)."""
         # Supabase range is inclusive, so end = offset + limit - 1
         end = offset + max(0, limit - 1)
-        resp = (
+        query = (
             self.supabase.table(self.table)
-            .select("id,filename,uploader_id,uploaded_at,chunks_count,page_count,file_size,status,storage_path")
-            .order("uploaded_at", desc=True)
-            .range(offset, end)
-            .execute()
+            .select("id,filename,uploader_id,tenant_id,uploaded_at,chunks_count,page_count,file_size,status,storage_path")
         )
+        
+        # Only filter by tenant_id if provided
+        if tenant_id is not None:
+            query = query.eq("tenant_id", tenant_id)
+        
+        resp = query.order("uploaded_at", desc=True).range(offset, end).execute()
 
         # Normalize response data
         data = getattr(resp, "data", None)

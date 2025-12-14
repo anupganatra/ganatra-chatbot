@@ -7,7 +7,7 @@ class User(BaseModel):
     """User model."""
     id: str = Field(..., description="User ID from Supabase")
     email: str = Field(..., description="User email")
-    role: str = Field(..., description="User role: 'admin' or 'user'")
+    role: str = Field(..., description="User role: 'super_admin', 'admin' (tenant admin), or 'user'. Admin role is determined by tenant admin status, not user_metadata.")
 
 
 class TokenData(BaseModel):

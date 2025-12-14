@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000"]
     
+    # Frontend
+    FRONTEND_URL: str = "http://localhost:3000"
+    
     # File Upload
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
     ALLOWED_EXTENSIONS: List[str] = [".pdf"]

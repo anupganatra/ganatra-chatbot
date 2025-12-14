@@ -2,11 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from app.models.user import User
 from app.models.model import AvailableModelCreate, AvailableModelUpdate
-from app.api.dependencies import get_current_admin_user
+from app.api.dependencies import get_current_admin_user, get_current_user_tenant, get_current_user_tenant_optional
 from app.services.qdrant import qdrant_service
 from app.services.supabase_client import supabase_client
 from app.middleware.rate_limit import limiter
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 from datetime import datetime
 import uuid
 
@@ -17,14 +17,18 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 @limiter.limit("30/minute")
 async def get_stats(
     request: Request,
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_current_admin_user),
+    tenant_id: Optional[str] = Depends(get_current_user_tenant_optional)
 ) -> Dict:
     """
     Get system statistics (admin only).
+    Super admins can view all companies' stats (tenant_id=None).
+    Regular admins view their own company's stats.
     
     Args:
         request: FastAPI request object
         current_user: Current authenticated admin user
+        tenant_id: Current user's tenant ID (None for super admins viewing all)
     
     Returns:
         Dictionary with system statistics including document counts and storage
@@ -33,7 +37,9 @@ async def get_stats(
         collection_info = qdrant_service.get_collection_info()
         
         # Get document statistics from Supabase
-        docs = supabase_client.list_documents(offset=0, limit=10000)
+        # If tenant_id is None (super admin), get all documents
+        # Otherwise, filter by tenant
+        docs = supabase_client.list_documents(tenant_id=tenant_id, offset=0, limit=10000)
         total_documents = len(docs)
         total_storage_bytes = sum(doc.get('file_size', 0) or 0 for doc in docs)
         
@@ -91,14 +97,15 @@ async def rebuild_index(
 async def get_documents(
     request: Request,
     current_user: User = Depends(get_current_admin_user),
+    tenant_id: str = Depends(get_current_user_tenant),
     offset: int = 0,
     limit: int = 100,
 ) -> List[Dict[str, Any]]:
     """
-    Return list of documents stored in Supabase metadata table (admin only).
+    Return list of documents stored in Supabase metadata table for tenant (admin only).
     """
     try:
-        docs = supabase_client.list_documents(offset=offset, limit=limit)
+        docs = supabase_client.list_documents(tenant_id=tenant_id, offset=offset, limit=limit)
         return docs
     except Exception as e:
         raise HTTPException(

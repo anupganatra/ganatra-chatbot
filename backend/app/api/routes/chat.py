@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import StreamingResponse
 from app.models.chat import ChatRequest, ChatResponse
 from app.models.user import User
-from app.api.dependencies import get_current_user
+from app.api.dependencies import get_current_user, get_current_user_tenant
 from app.services.rag import rag_service
 from app.services.user_preferences import user_preferences_service
 from app.middleware.rate_limit import limiter
@@ -18,7 +18,8 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 async def chat(
     request: Request,
     chat_request: ChatRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_current_user_tenant)
 ):
     """
     Chat endpoint - generate response using RAG.
@@ -38,8 +39,11 @@ async def chat(
         if not model_id:
             model_id = user_preferences_service.get_user_model(current_user.id)
         
-        # Retrieve context and generate answer
-        context = rag_service.retrieve_context(chat_request.message)
+        # Retrieve context and generate answer (tenant-filtered)
+        context = rag_service.retrieve_context(
+            query=chat_request.message,
+            tenant_id=tenant_id
+        )
         
         if not context:
             return ChatResponse(
@@ -52,6 +56,7 @@ async def chat(
         # Generate answer
         answer = rag_service.generate_answer(
             query=chat_request.message,
+            tenant_id=tenant_id,
             context=context,
             stream=False,
             model_id=model_id
@@ -88,7 +93,8 @@ async def chat(
 async def chat_stream(
     request: Request,
     chat_request: ChatRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    tenant_id: str = Depends(get_current_user_tenant)
 ):
     """
     Streaming chat endpoint.
@@ -108,8 +114,11 @@ async def chat_stream(
         if not model_id:
             model_id = user_preferences_service.get_user_model(current_user.id)
         
-        # Retrieve context
-        context = rag_service.retrieve_context(chat_request.message)
+        # Retrieve context (tenant-filtered)
+        context = rag_service.retrieve_context(
+            query=chat_request.message,
+            tenant_id=tenant_id
+        )
         
         async def generate():
             if not context:
@@ -122,6 +131,7 @@ async def chat_stream(
             # Stream response
             async for chunk in rag_service.generate_answer_stream(
                 query=chat_request.message,
+                tenant_id=tenant_id,
                 context=context,
                 model_id=model_id
             ):

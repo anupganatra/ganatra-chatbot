@@ -23,6 +23,11 @@ export function SidebarCollapsedToolbar() {
   const router = useRouter()
   const [reportBugOpen, setReportBugOpen] = useState(false)
 
+  // Admin status is now set correctly in user.role by useAuth hook
+  // - super_admin: from user_metadata (instant)
+  // - admin: from user_tenants table (fast Supabase query)
+  const isAdmin = user?.role === "admin" || user?.role === "super_admin"
+
   // Only show when sidebar is collapsed (not on mobile)
   const isCollapsed = !isMobile && state === "collapsed"
   const isVisible = isCollapsed && !openMobile
@@ -31,7 +36,6 @@ export function SidebarCollapsedToolbar() {
 
   const userInitial = user?.email?.charAt(0).toUpperCase() || "A"
   const userEmail = user?.email || "demo@example.com"
-  const isAdmin = user?.role === "admin"
 
   const handleSignOut = async () => {
     await signOut()

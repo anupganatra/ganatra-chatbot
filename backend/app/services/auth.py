@@ -3,6 +3,7 @@ from typing import Optional
 from supabase import create_client, Client
 from app.config import settings
 from app.models.user import User, TokenData
+from app.services.tenant import tenant_service
 
 
 class AuthService:
@@ -14,12 +15,14 @@ class AuthService:
     def verify_token(self, token: str) -> Optional[TokenData]:
         """
         Verify JWT token and extract user data.
+        Also checks if user can login (has active tenant).
+        Role is read from user_metadata.role.
         
         Args:
             token: JWT token string
         
         Returns:
-            TokenData if valid, None otherwise
+            TokenData if valid and user can login, None otherwise
         """
         try:
             # Remove 'Bearer ' prefix if present
@@ -31,10 +34,15 @@ class AuthService:
             
             if response.user:
                 user = response.user
-                
-                # Get user metadata for role
                 user_metadata = user.user_metadata or {}
+                
+                # Read role from user_metadata (defaults to 'user' if not set)
                 role = user_metadata.get('role', 'user')
+                
+                # Check if user can login (has active tenant) for non-super-admins
+                if role != 'super_admin' and not self.check_user_can_login(user.id):
+                    print(f"User {user.id} cannot login: no active tenant")
+                    return None
                 
                 return TokenData(
                     user_id=user.id,
@@ -51,12 +59,14 @@ class AuthService:
     def get_user(self, user_id: str) -> Optional[User]:
         """
         Get user information by ID.
+        Also verifies user can login (has active tenant) unless super admin.
+        Role is read from user_metadata.role.
         
         Args:
             user_id: User ID
         
         Returns:
-            User object if found, None otherwise
+            User object if found and can login, None otherwise
         """
         try:
             response = self.supabase.auth.admin.get_user_by_id(user_id)
@@ -64,7 +74,14 @@ class AuthService:
             if response.user:
                 user = response.user
                 user_metadata = user.user_metadata or {}
+                
+                # Read role from user_metadata (defaults to 'user' if not set)
                 role = user_metadata.get('role', 'user')
+                
+                # Check if user can login (has active tenant) for non-super-admins
+                if role != 'super_admin' and not self.check_user_can_login(user_id):
+                    print(f"User {user_id} cannot login: no active tenant")
+                    return None
                 
                 return User(
                     id=user.id,
@@ -80,7 +97,7 @@ class AuthService:
     
     def is_admin(self, token: str) -> bool:
         """
-        Check if user has admin role.
+        Check if user has admin role (super admin or tenant admin).
         
         Args:
             token: JWT token
@@ -89,7 +106,25 @@ class AuthService:
             True if user is admin, False otherwise
         """
         token_data = self.verify_token(token)
-        return token_data is not None and token_data.role == 'admin'
+        return token_data is not None and (token_data.role == 'admin' or token_data.role == 'super_admin')
+    
+    def check_user_can_login(self, user_id: str) -> bool:
+        """
+        Check if user can login (has active tenant).
+        Super admins can always login.
+        
+        Args:
+            user_id: User ID
+        
+        Returns:
+            True if user can login, False otherwise
+        """
+        # Super admins can always login
+        if tenant_service.is_super_admin(user_id):
+            return True
+        
+        # Regular users need an active tenant
+        return tenant_service.can_user_login(user_id)
 
 
 # Global auth service instance
