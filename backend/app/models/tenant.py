@@ -21,6 +21,7 @@ class TenantResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    deactivated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

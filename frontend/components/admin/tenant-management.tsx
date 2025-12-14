@@ -26,7 +26,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Switch } from "@/components/ui/switch"
 import { useTenants } from "@/hooks/use-tenants"
-import { Plus, Edit2, Power, PowerOff, Users, Loader2, Building2 } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Plus, Edit2, Power, PowerOff, Users, Loader2, Building2, Search } from "lucide-react"
 import { TenantUsers } from "./tenant-users"
 
 export function TenantManagement() {
@@ -40,6 +46,7 @@ export function TenantManagement() {
   const [viewUsersTenant, setViewUsersTenant] = useState<string | null>(null)
   const [tenantName, setTenantName] = useState("")
   const [editName, setEditName] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     refreshTenants(showInactive)
@@ -98,9 +105,11 @@ export function TenantManagement() {
     setActivateDialogOpen(true)
   }
 
-  const filteredTenants = showInactive ? tenants : tenants.filter(t => t.is_active)
+  const filteredTenants = (showInactive ? tenants : tenants.filter(t => t.is_active))
+    .filter(t => t.name.toLowerCase().includes(searchQuery.toLowerCase()))
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
@@ -108,13 +117,22 @@ export function TenantManagement() {
           <p className="text-sm text-muted-foreground">Manage companies</p>
         </div>
         <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search companies..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-[200px]"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <Switch
               id="show-inactive"
               checked={showInactive}
               onCheckedChange={setShowInactive}
             />
-            <Label htmlFor="show-inactive">Show inactive</Label>
+            <Label htmlFor="show-inactive" className="text-sm">Show inactive</Label>
           </div>
           <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
             <DialogTrigger asChild>
@@ -203,43 +221,76 @@ export function TenantManagement() {
 
                 <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                   <span>Created: {new Date(tenant.created_at).toLocaleDateString()}</span>
+                  {tenant.deactivated_at && (
+                    <span>Deactivated on: {new Date(tenant.deactivated_at).toLocaleDateString()}</span>
+                  )}
                 </div>
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setViewUsersTenant(tenant.id)}
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Users
-                </Button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setViewUsersTenant(tenant.id)}
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      Users
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Manage users in this company</p>
+                  </TooltipContent>
+                </Tooltip>
                 {tenant.is_active ? (
                   <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEditDialog(tenant)}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openDeactivateDialog(tenant.id)}
-                    >
-                      <PowerOff className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditDialog(tenant)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Edit company name</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950"
+                          onClick={() => openDeactivateDialog(tenant.id)}
+                        >
+                          <PowerOff className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Deactivate company</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </>
                 ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openActivateDialog(tenant.id)}
-                  >
-                    <Power className="h-4 w-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
+                        onClick={() => openActivateDialog(tenant.id)}
+                      >
+                        <Power className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Activate company</p>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -337,6 +388,7 @@ export function TenantManagement() {
         </Dialog>
       )}
     </div>
+    </TooltipProvider>
   )
 }
 

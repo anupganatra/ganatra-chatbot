@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { User } from '@/types/user'
+import { getCurrentUser } from '@/lib/api/backend'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
@@ -22,17 +23,19 @@ export function useAuth() {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session?.user) {
-        const userMetadata = session.user.user_metadata || {}
-        // Read role directly from user_metadata for all users
-        const role = userMetadata.role || 'user' // Default to 'user' if not set
-        
-        setUser({
-          id: session.user.id,
-          email: session.user.email || '',
-          role: role,
-          fullName: userMetadata.full_name || ''
-        })
-        setLoading(false)
+        // Verify with backend that user is allowed to log in (not deactivated)
+        try {
+          const backendUser = await getCurrentUser()
+          // User is allowed, use backend user data (which has verified role)
+          setUser(backendUser)
+          setLoading(false)
+        } catch (error) {
+          // Backend rejected the user (likely deactivated), sign them out
+          console.error('User not allowed to log in:', error)
+          await supabase.auth.signOut()
+          setUser(null)
+          setLoading(false)
+        }
       } else {
         setUser(null)
         setLoading(false)
@@ -44,17 +47,19 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
-          const userMetadata = session.user.user_metadata || {}
-          // Read role directly from user_metadata for all users
-          const role = userMetadata.role || 'user' // Default to 'user' if not set
-          
-          setUser({
-            id: session.user.id,
-            email: session.user.email || '',
-            role: role,
-            fullName: userMetadata.full_name || ''
-          })
-          setLoading(false)
+          // Verify with backend that user is allowed to log in (not deactivated)
+          try {
+            const backendUser = await getCurrentUser()
+            // User is allowed, use backend user data (which has verified role)
+            setUser(backendUser)
+            setLoading(false)
+          } catch (error) {
+            // Backend rejected the user (likely deactivated), sign them out
+            console.error('User not allowed to log in:', error)
+            await supabase.auth.signOut()
+            setUser(null)
+            setLoading(false)
+          }
         } else {
           setUser(null)
           setLoading(false)

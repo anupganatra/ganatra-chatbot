@@ -9,7 +9,13 @@ import DocumentList from "@/components/admin/document-list"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, FileText, Upload, BarChart3, Loader2, Cpu } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { ArrowLeft, FileText, Upload, BarChart3, Loader2, Cpu, HelpCircle } from "lucide-react"
 import { ModelManagement } from "@/components/admin/model-management"
 import { TenantManagement } from "@/components/admin/tenant-management"
 import { TenantUsers } from "@/components/admin/tenant-users"
@@ -196,14 +202,22 @@ export default function AdminPage() {
   }
 
   return (
+    <TooltipProvider>
     <div className="min-h-screen flex flex-col bg-background">
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto max-w-6xl px-4">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => router.push("/chat")} className="shrink-0">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={() => router.push("/chat")} className="shrink-0">
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Back to chat</p>
+                </TooltipContent>
+              </Tooltip>
                       <div>
                         <h1 className="text-xl font-semibold">Admin Dashboard</h1>
                         <p className="text-sm text-muted-foreground">Manage dashboard</p>
@@ -370,7 +384,17 @@ export default function AdminPage() {
                 <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>Total Documents</CardDescription>
+                  <div className="flex items-center gap-1">
+                    <CardDescription>Total Documents</CardDescription>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Number of PDFs and websites added to the knowledge base</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <CardTitle className="text-3xl">
                     {statsLoading ? (
                       <Loader2 className="h-6 w-6 animate-spin" />
@@ -385,7 +409,17 @@ export default function AdminPage() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>Total Chunks</CardDescription>
+                  <div className="flex items-center gap-1">
+                    <CardDescription>Total Chunks</CardDescription>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[200px]">
+                        <p>Documents are split into smaller pieces (chunks) for better search accuracy</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <CardTitle className="text-3xl">
                     {statsLoading ? (
                       <Loader2 className="h-6 w-6 animate-spin" />
@@ -400,7 +434,17 @@ export default function AdminPage() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardDescription>Storage Used</CardDescription>
+                  <div className="flex items-center gap-1">
+                    <CardDescription>Storage Used</CardDescription>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Total size of all uploaded documents</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <CardTitle className="text-3xl">
                     {statsLoading ? (
                       <Loader2 className="h-6 w-6 animate-spin" />
@@ -437,5 +481,6 @@ export default function AdminPage() {
         </Tabs>
       </main>
     </div>
+    </TooltipProvider>
   )
 }

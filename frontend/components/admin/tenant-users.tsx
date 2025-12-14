@@ -34,7 +34,13 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { useTenantUsers } from "@/hooks/use-tenants"
 import { useAuth } from "@/hooks/use-auth"
-import { Plus, Power, PowerOff, UserCog, Loader2, User, X, Eye, EyeOff } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Plus, Power, PowerOff, UserCog, Loader2, User, X, Eye, EyeOff, Search, Mail, Shield, UserCheck } from "lucide-react"
 
 interface TenantUsersProps {
   tenantId: string
@@ -54,6 +60,7 @@ export function TenantUsers({ tenantId, onClose }: TenantUsersProps) {
   const [newUserFullName, setNewUserFullName] = useState("")
   const [newUserRole, setNewUserRole] = useState<"admin" | "user">("user")
   const [showPassword, setShowPassword] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
     refreshUsers(showInactive)
@@ -110,30 +117,53 @@ export function TenantUsers({ tenantId, onClose }: TenantUsersProps) {
   // Filter out current user from the list
   const filteredUsers = (showInactive ? users : users.filter(u => u.is_active))
     .filter(u => u.user_id !== currentUser?.id)
+    .filter(u => 
+      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (u.full_name && u.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    )
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">Users</h3>
-          <p className="text-sm text-muted-foreground">Manage users in this company</p>
+          <p className="text-sm text-muted-foreground">
+            {users.filter(u => u.user_id !== currentUser?.id).length} user{users.filter(u => u.user_id !== currentUser?.id).length !== 1 ? 's' : ''} in this company
+          </p>
         </div>
         <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search users..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-[180px]"
+            />
+          </div>
           <div className="flex items-center gap-2">
             <Switch
               id="show-inactive-users"
               checked={showInactive}
               onCheckedChange={setShowInactive}
             />
-            <Label htmlFor="show-inactive-users">Show inactive</Label>
+            <Label htmlFor="show-inactive-users" className="text-sm">Show inactive</Label>
           </div>
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Add User
-              </Button>
-            </DialogTrigger>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add User
+                  </Button>
+                </DialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Create a new user account</p>
+              </TooltipContent>
+            </Tooltip>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add User</DialogTitle>
@@ -172,19 +202,26 @@ export function TenantUsers({ tenantId, onClose }: TenantUsersProps) {
                         }
                       }}
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{showPassword ? "Hide password" : "Show password"}</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                   <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
                 </div>
@@ -287,39 +324,72 @@ export function TenantUsers({ tenantId, onClose }: TenantUsersProps) {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <Select
-                  value={user.role}
-                  onValueChange={(value: "admin" | "user") => handleRoleChange(user.user_id, value)}
-                  disabled={loading || user.user_id === currentUser?.id}
-                >
-                  <SelectTrigger className="w-[100px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div>
+                      <Select
+                        value={user.role}
+                        onValueChange={(value: "admin" | "user") => handleRoleChange(user.user_id, value)}
+                        disabled={loading || user.user_id === currentUser?.id}
+                      >
+                        <SelectTrigger className="w-[100px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">
+                            <span className="flex items-center gap-2">
+                              <User className="h-3 w-3" />
+                              User
+                            </span>
+                          </SelectItem>
+                          <SelectItem value="admin">
+                            <span className="flex items-center gap-2">
+                              <Shield className="h-3 w-3" />
+                              Admin
+                            </span>
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Change user role</p>
+                  </TooltipContent>
+                </Tooltip>
                 {user.is_active ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openDeactivateDialog(user.user_id)}
-                    disabled={user.user_id === currentUser?.id}
-                    title={user.user_id === currentUser?.id ? "You cannot deactivate yourself" : ""}
-                  >
-                    <PowerOff className="h-4 w-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-950"
+                        onClick={() => openDeactivateDialog(user.user_id)}
+                        disabled={user.user_id === currentUser?.id}
+                      >
+                        <PowerOff className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{user.user_id === currentUser?.id ? "You cannot deactivate yourself" : "Deactivate user"}</p>
+                    </TooltipContent>
+                  </Tooltip>
                 ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openActivateDialog(user.user_id)}
-                    disabled={user.user_id === currentUser?.id}
-                    title={user.user_id === currentUser?.id ? "You cannot activate yourself" : ""}
-                  >
-                    <Power className="h-4 w-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-950"
+                        onClick={() => openActivateDialog(user.user_id)}
+                        disabled={user.user_id === currentUser?.id}
+                      >
+                        <Power className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{user.user_id === currentUser?.id ? "You cannot activate yourself" : "Activate user"}</p>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
               </div>
             </div>
@@ -366,6 +436,7 @@ export function TenantUsers({ tenantId, onClose }: TenantUsersProps) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </TooltipProvider>
   )
 }
 

@@ -6,6 +6,12 @@ import { Badge } from "@/components/ui/badge"
 import { getAdminDocuments } from "@/lib/api/backend"
 import { useDocuments } from "@/hooks/use-documents"
 import type { DocumentInfo } from "@/types/document"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { RefreshCw, Trash2, FileText, Calendar, Layers, HardDrive, Globe } from "lucide-react"
 
 // Cache configuration
@@ -171,23 +177,31 @@ export default function DocumentList() {
   }
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {documents.length} document{documents.length !== 1 ? "s" : ""}
         </p>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => {
-            clearCache()
-            fetchDocs(false, false)
-          }} 
-          disabled={loading}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                clearCache()
+                fetchDocs(false, false)
+              }} 
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Refresh document list</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       {error && <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>}
@@ -258,20 +272,28 @@ export default function DocumentList() {
                 </div>
               </div>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                onClick={() => handleDelete(doc.id)}
-                disabled={uploading}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => handleDelete(doc.id)}
+                    disabled={uploading}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Delete document</p>
+                </TooltipContent>
+              </Tooltip>
             </div>
             )
           })}
         </div>
       )}
     </div>
+    </TooltipProvider>
   )
 }

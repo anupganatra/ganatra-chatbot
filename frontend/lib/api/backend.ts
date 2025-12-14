@@ -343,6 +343,7 @@ export interface Tenant {
   is_active: boolean
   created_at: string
   updated_at: string
+  deactivated_at?: string
 }
 
 export interface TenantUser {

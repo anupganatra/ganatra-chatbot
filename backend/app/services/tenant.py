@@ -307,6 +307,7 @@ class TenantService:
                 self.supabase.table("tenants")
                 .update({
                     "is_active": False,
+                    "deactivated_at": datetime.utcnow().isoformat(),
                     "updated_at": datetime.utcnow().isoformat()
                 })
                 .eq("id", tenant_id)
@@ -336,6 +337,7 @@ class TenantService:
                 self.supabase.table("tenants")
                 .update({
                     "is_active": True,
+                    "deactivated_at": None,
                     "updated_at": datetime.utcnow().isoformat()
                 })
                 .eq("id", tenant_id)

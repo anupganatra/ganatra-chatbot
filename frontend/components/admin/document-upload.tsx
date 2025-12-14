@@ -8,7 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Upload, File, X, Loader2, Globe, Link2 } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Upload, File, X, Loader2, Globe, Link2, HelpCircle } from "lucide-react"
 import { useDocuments } from "@/hooks/use-documents"
 
 export function DocumentUpload() {
@@ -108,6 +114,7 @@ export function DocumentUpload() {
   }
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "pdf" | "website")} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -192,9 +199,19 @@ export function DocumentUpload() {
           <div className="space-y-4 pt-2 border-t">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label htmlFor="enable-crawl" className="text-sm font-medium">
-                  Crawl multiple pages
-                </Label>
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="enable-crawl" className="text-sm font-medium">
+                    Crawl multiple pages
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[250px]">
+                      <p>Enable this to automatically discover and process linked pages from the same website domain.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Follow links to crawl multiple pages from the same domain
                 </p>
@@ -208,11 +225,21 @@ export function DocumentUpload() {
             </div>
 
             {enableCrawl && (
-              <div className="space-y-4 pl-4 border-l-2">
+              <div className="space-y-4 pl-4 border-l-2 border-primary/20">
                 <div className="space-y-2">
-                  <Label htmlFor="max-pages" className="text-sm font-medium">
-                    Max pages
-                  </Label>
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="max-pages" className="text-sm font-medium">
+                      Max pages
+                    </Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Total number of pages to process</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Input
                     id="max-pages"
                     type="number"
@@ -234,9 +261,19 @@ export function DocumentUpload() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="max-depth" className="text-sm font-medium">
-                    Max depth
-                  </Label>
+                  <div className="flex items-center gap-1">
+                    <Label htmlFor="max-depth" className="text-sm font-medium">
+                      Max depth
+                    </Label>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[250px]">
+                        <p>How many link levels to follow from the starting page. Depth 1 = only the starting page, Depth 2 = starting page + directly linked pages.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Input
                     id="max-depth"
                     type="number"
@@ -309,5 +346,6 @@ export function DocumentUpload() {
         )}
       </Button>
     </div>
+    </TooltipProvider>
   )
 }

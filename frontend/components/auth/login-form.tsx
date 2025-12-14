@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
+import { getCurrentUser } from '@/lib/api/backend'
 
 export function LoginForm() {
   const [email, setEmail] = useState('')
@@ -104,8 +105,17 @@ export function LoginForm() {
 
       if (error) throw error
 
-      router.push('/chat')
-      router.refresh()
+      // Verify with backend that user is allowed to log in (not deactivated)
+      try {
+        await getCurrentUser()
+        // User is allowed to log in, proceed
+        router.push('/chat')
+        router.refresh()
+      } catch (backendError) {
+        // Backend rejected the user (likely deactivated), sign them out
+        await supabase.auth.signOut()
+        setError('Your account has been deactivated. Please contact an administrator.')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {

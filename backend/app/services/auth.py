@@ -111,7 +111,7 @@ class AuthService:
     
     def check_user_can_login(self, user_id: str) -> bool:
         """
-        Check if user can login (has active tenant).
+        Check if user can login (has active tenant and user is active in tenant).
         Super admins can always login.
         
         Args:
@@ -124,8 +124,18 @@ class AuthService:
         if tenant_service.is_super_admin(user_id):
             return True
         
-        # Regular users need an active tenant
-        return tenant_service.can_user_login(user_id)
+        # Regular users need an active tenant AND must be active in that tenant
+        tenant_id = tenant_service.get_user_tenant(user_id)
+        if tenant_id is None:
+            print(f"User {user_id} cannot login: no active tenant found")
+            return False
+        
+        # Double-check that user is active in the tenant (get_user_tenant already checks this, but be explicit)
+        if not tenant_service.is_user_active_in_tenant(user_id, tenant_id):
+            print(f"User {user_id} cannot login: user is not active in tenant {tenant_id}")
+            return False
+        
+        return True
 
 
 # Global auth service instance
