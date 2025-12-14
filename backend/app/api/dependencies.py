@@ -61,7 +61,10 @@ async def get_current_admin_user(
         HTTPException: If user is not admin
     """
     # Check role from user_metadata (already set in current_user.role)
-    if current_user.role not in ('admin', 'super_admin'):
+    # Normalize role for comparison (case-insensitive, strip whitespace)
+    user_role = str(current_user.role).strip().lower() if current_user.role else ''
+    if user_role not in ('admin', 'super_admin'):
+        print(f"DEBUG: get_current_admin_user - user_id: {current_user.id}, role: {current_user.role}, normalized: {user_role}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions. Admin role required."
@@ -108,7 +111,7 @@ async def get_current_user_tenant_optional(
 ) -> Optional[str]:
     """
     Dependency to get current user's tenant_id (optional for super admins).
-    Super admins can pass None to view all companies' data.
+    Super admins can pass None to view documents with NULL tenant_id.
     
     Args:
         current_user: Current authenticated user
@@ -119,13 +122,23 @@ async def get_current_user_tenant_optional(
     Raises:
         HTTPException: If regular user has no tenant or tenant is inactive
     """
-    # Super admins don't need a tenant
-    if tenant_service.is_super_admin(current_user.id):
+    # Super admins don't need a tenant - return None
+    # Role is already set in current_user.role from user_metadata
+    # Debug: print role to verify it's being set correctly
+    print(f"DEBUG: get_current_user_tenant_optional - user_id: {current_user.id}, role: {current_user.role}, role type: {type(current_user.role)}")
+    
+    # Check role (case-insensitive, strip whitespace)
+    user_role = str(current_user.role).strip().lower() if current_user.role else ''
+    
+    # Also double-check by querying the service directly if role check fails
+    if user_role == 'super_admin' or tenant_service.is_super_admin(current_user.id):
+        print(f"DEBUG: Super admin detected (role: {user_role}), returning None for tenant_id")
         return None
     
     tenant_id = tenant_service.get_user_tenant(current_user.id)
     
     if tenant_id is None:
+        print(f"DEBUG: User {current_user.id} (role: {current_user.role}) has no tenant")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User is not associated with an active tenant."

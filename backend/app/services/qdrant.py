@@ -73,7 +73,7 @@ class QdrantService:
         chunks: List[Dict],
         embeddings: List[List[float]],
         document_id: str,
-        tenant_id: str
+        tenant_id: Optional[str]
     ) -> int:
         """
         Upsert document chunks with embeddings.
@@ -82,7 +82,7 @@ class QdrantService:
             chunks: List of chunk dictionaries with 'text' and 'metadata'
             embeddings: List of embeddings for each chunk
             document_id: Document ID
-            tenant_id: Tenant ID
+            tenant_id: Tenant ID (None for super admin uploads)
         
         Returns:
             Number of points upserted
@@ -94,18 +94,24 @@ class QdrantService:
         for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
             point_id = str(uuid.uuid4())
             
+            # Build payload - only include tenant_id if it's not None
+            payload = {
+                "text": chunk["text"],
+                "document_id": document_id,
+                "filename": chunk["metadata"]["filename"],
+                "chunk_index": chunk["metadata"]["chunk_index"],
+                "total_chunks": chunk["metadata"]["total_chunks"]
+            }
+            
+            # Only add tenant_id if it's not None (for super admin uploads)
+            if tenant_id is not None:
+                payload["tenant_id"] = tenant_id
+            
             points.append(
                 PointStruct(
                     id=point_id,
                     vector=embedding,
-                    payload={
-                        "text": chunk["text"],
-                        "document_id": document_id,
-                        "tenant_id": tenant_id,
-                        "filename": chunk["metadata"]["filename"],
-                        "chunk_index": chunk["metadata"]["chunk_index"],
-                        "total_chunks": chunk["metadata"]["total_chunks"]
-                    }
+                    payload=payload
                 )
             )
         
@@ -122,17 +128,18 @@ class QdrantService:
     def search(
         self,
         query_embedding: List[float],
-        tenant_id: str,
+        tenant_id: Optional[str],
         top_k: int = None,
         score_threshold: float = None,
         document_id: Optional[str] = None
     ) -> List[Dict]:
         """
         Search for similar chunks filtered by tenant.
+        If tenant_id is None (super admin), searches only documents with NULL/missing tenant_id.
         
         Args:
             query_embedding: Query embedding vector
-            tenant_id: Tenant ID to filter results
+            tenant_id: Tenant ID to filter results (None for super admin to search NULL tenant_id docs only)
             top_k: Number of results to return
             score_threshold: Minimum similarity score (None to use default, or set to 0 to disable)
             document_id: Optional filter by document ID
@@ -144,13 +151,22 @@ class QdrantService:
         # Use provided threshold, or default from settings, but allow None to disable
         use_threshold = score_threshold if score_threshold is not None else settings.SIMILARITY_THRESHOLD
         
-        # Build filter - always filter by tenant_id, optionally by document_id
-        filter_conditions = [
-            FieldCondition(
-                key="tenant_id",
-                match=MatchValue(value=tenant_id)
+        # Build filter - filter by tenant_id if provided
+        # If tenant_id is None (super admin), filter for documents with NULL/missing tenant_id
+        # Note: Qdrant doesn't support filtering for NULL/missing fields directly,
+        # so we'll filter results in Python after getting them from Qdrant
+        filter_conditions = []
+        
+        if tenant_id is not None:
+            # Regular admin: filter by their tenant_id
+            filter_conditions.append(
+                FieldCondition(
+                    key="tenant_id",
+                    match=MatchValue(value=tenant_id)
+                )
             )
-        ]
+        # If tenant_id is None, we don't add a tenant_id filter here
+        # We'll filter results in Python to only include those without tenant_id
         
         if document_id:
             filter_conditions.append(
@@ -205,6 +221,15 @@ class QdrantService:
                 if not text:
                     continue
                 
+                # If tenant_id is None (super admin), only include results without tenant_id
+                payload_tenant_id = payload.get("tenant_id") if isinstance(payload, dict) else getattr(payload, 'tenant_id', None)
+                if tenant_id is None and payload_tenant_id is not None:
+                    # Skip this result - it has a tenant_id but super admin should only see NULL tenant_id docs
+                    continue
+                elif tenant_id is not None and payload_tenant_id != tenant_id:
+                    # Skip this result - tenant_id doesn't match (shouldn't happen with filter, but double-check)
+                    continue
+                
                 formatted_results.append({
                     "text": text,
                     "metadata": {
@@ -241,6 +266,15 @@ class QdrantService:
                     
                     text = payload.get("text", "") if isinstance(payload, dict) else getattr(payload, 'text', '')
                     if text:
+                        # If tenant_id is None (super admin), only include results without tenant_id
+                        payload_tenant_id = payload.get("tenant_id") if isinstance(payload, dict) else getattr(payload, 'tenant_id', None)
+                        if tenant_id is None and payload_tenant_id is not None:
+                            # Skip this result - it has a tenant_id but super admin should only see NULL tenant_id docs
+                            continue
+                        elif tenant_id is not None and payload_tenant_id != tenant_id:
+                            # Skip this result - tenant_id doesn't match
+                            continue
+                        
                         formatted_results.append({
                             "text": text,
                             "metadata": {
@@ -261,10 +295,11 @@ class QdrantService:
     def delete_document(self, document_id: str, tenant_id: Optional[str] = None) -> int:
         """
         Delete all chunks for a document, optionally filtered by tenant.
+        If tenant_id is None, deletes chunks with NULL tenant_id (for super admin uploads).
         
         Args:
             document_id: Document ID to delete
-            tenant_id: Optional tenant ID to verify ownership
+            tenant_id: Optional tenant ID to verify ownership (None for super admin to delete NULL tenant_id docs)
         
         Returns:
             Number of points deleted
@@ -279,7 +314,9 @@ class QdrantService:
             ]
             
             # Add tenant filter if provided
-            if tenant_id:
+            # If tenant_id is None, we delete all chunks for this document_id
+            # (which is safe for super admin as RLS will prevent unauthorized deletions)
+            if tenant_id is not None:
                 filter_conditions.append(
                     FieldCondition(
                         key="tenant_id",

@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from app.models.user import User
 from app.models.model import AvailableModelCreate, AvailableModelUpdate
-from app.api.dependencies import get_current_admin_user, get_current_user_tenant, get_current_user_tenant_optional
+from app.api.dependencies import get_current_admin_user, get_current_user_tenant_optional
 from app.services.qdrant import qdrant_service
 from app.services.supabase_client import supabase_client
 from app.middleware.rate_limit import limiter
@@ -22,13 +22,13 @@ async def get_stats(
 ) -> Dict:
     """
     Get system statistics (admin only).
-    Super admins can view all companies' stats (tenant_id=None).
-    Regular admins view their own company's stats.
+    Super admins can view analytics of all companies (all tenants + NULL tenant_id documents).
+    Regular admins view their own company's stats only.
     
     Args:
         request: FastAPI request object
         current_user: Current authenticated admin user
-        tenant_id: Current user's tenant ID (None for super admins viewing all)
+        tenant_id: Current user's tenant ID (None for super admins)
     
     Returns:
         Dictionary with system statistics including document counts and storage
@@ -37,16 +37,24 @@ async def get_stats(
         collection_info = qdrant_service.get_collection_info()
         
         # Get document statistics from Supabase
-        # If tenant_id is None (super admin), get all documents
+        # If tenant_id is None (super admin), get all documents from all tenants
         # Otherwise, filter by tenant
-        docs = supabase_client.list_documents(tenant_id=tenant_id, offset=0, limit=10000)
+        if tenant_id is None and current_user.role == 'super_admin':
+            # Super admin: get all documents from all tenants (including NULL tenant_id)
+            docs = supabase_client.list_documents(tenant_id=None, offset=0, limit=10000, include_all=True)
+        else:
+            # Regular admin: get documents from their tenant only
+            docs = supabase_client.list_documents(tenant_id=tenant_id, offset=0, limit=10000, include_all=False)
+        
         total_documents = len(docs)
         total_storage_bytes = sum(doc.get('file_size', 0) or 0 for doc in docs)
+        # Sum chunks_count from documents (tenant-filtered)
+        total_chunks = sum(doc.get('chunks_count', 0) or 0 for doc in docs)
         
         return {
             "collection_name": collection_info["name"],
-            "total_chunks": collection_info["points_count"],
-            "vectors_count": collection_info["vectors_count"],
+            "total_chunks": total_chunks,  # Use tenant-filtered chunk count
+            "vectors_count": collection_info["vectors_count"],  # Keep total vectors for reference
             "total_documents": total_documents,
             "total_storage_bytes": total_storage_bytes
         }
@@ -97,12 +105,14 @@ async def rebuild_index(
 async def get_documents(
     request: Request,
     current_user: User = Depends(get_current_admin_user),
-    tenant_id: str = Depends(get_current_user_tenant),
+    tenant_id: Optional[str] = Depends(get_current_user_tenant_optional),
     offset: int = 0,
     limit: int = 100,
 ) -> List[Dict[str, Any]]:
     """
-    Return list of documents stored in Supabase metadata table for tenant (admin only).
+    Return list of documents stored in Supabase metadata table.
+    Super admins without a tenant can view all documents (including those with NULL tenant_id).
+    Regular admins can only view their tenant's documents.
     """
     try:
         docs = supabase_client.list_documents(tenant_id=tenant_id, offset=offset, limit=limit)

@@ -52,6 +52,33 @@ async def get_current_user_role(
     return {"role": current_user.role}
 
 
+@router.get("/me/debug")
+@limiter.limit("30/minute")
+async def get_current_user_debug(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+) -> dict:
+    """
+    Debug endpoint to see raw user metadata.
+    """
+    try:
+        # Get raw user data from Supabase
+        response = tenant_service.supabase.auth.admin.get_user_by_id(current_user.id)
+        if response.user:
+            user_metadata = response.user.user_metadata or {}
+            return {
+                "user_id": current_user.id,
+                "email": current_user.email,
+                "computed_role": current_user.role,
+                "raw_user_metadata": user_metadata,
+                "is_super_admin_check": tenant_service.is_super_admin(current_user.id),
+                "tenant_id": tenant_service.get_user_tenant(current_user.id)
+            }
+        return {"error": "User not found"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @router.get("/me/tenant")
 @limiter.limit("30/minute")
 async def get_current_user_tenant_id(

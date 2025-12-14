@@ -3,7 +3,8 @@ import time
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Request
 from app.models.document import DocumentUploadResponse, DocumentDeleteResponse, WebsiteUploadRequest
 from app.models.user import User
-from app.api.dependencies import get_current_admin_user, get_current_user_tenant
+from app.api.dependencies import get_current_admin_user, get_current_user_tenant_optional
+from typing import Optional
 from app.services.qdrant import qdrant_service
 from app.services.embeddings import embedding_service
 from app.services.supabase_client import supabase_client
@@ -24,7 +25,7 @@ async def upload_document(
     request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_admin_user),
-    tenant_id: str = Depends(get_current_user_tenant)
+    tenant_id: Optional[str] = Depends(get_current_user_tenant_optional)
 ):
     """
     Upload and process a PDF document.
@@ -109,7 +110,8 @@ async def upload_document(
             chunks_created = qdrant_service.upsert_chunks(
                 chunks=chunks,
                 embeddings=embeddings,
-                document_id=document_id
+                document_id=document_id,
+                tenant_id=tenant_id
             )
             print(f"⏱️  Qdrant upsert: {time.time() - qdrant_start:.2f}s ({chunks_created} chunks)")
         except Exception as e:
@@ -183,7 +185,7 @@ async def upload_website(
     request: Request,
     website_request: WebsiteUploadRequest,
     current_user: User = Depends(get_current_admin_user),
-    tenant_id: str = Depends(get_current_user_tenant)
+    tenant_id: Optional[str] = Depends(get_current_user_tenant_optional)
 ):
     """
     Upload and process a website URL.
@@ -372,16 +374,18 @@ async def delete_document(
     request: Request,
     document_id: str,
     current_user: User = Depends(get_current_admin_user),
-    tenant_id: str = Depends(get_current_user_tenant)
+    tenant_id: Optional[str] = Depends(get_current_user_tenant_optional)
 ):
     """
-    Delete a document and all its chunks (tenant-scoped).
+    Delete a document and all its chunks.
+    Super admins without a tenant can delete documents with NULL tenant_id.
+    Regular admins can only delete documents from their own tenant.
     
     Args:
         request: FastAPI request object
         document_id: Document ID to delete
         current_user: Current authenticated admin user
-        tenant_id: Current user's tenant ID
+        tenant_id: Current user's tenant ID (None for super admins without tenant)
     
     Returns:
         DocumentDeleteResponse with deletion status
@@ -418,17 +422,19 @@ async def get_documents(
     offset: int = 0,
     limit: int = 100,
     current_user: User = Depends(get_current_admin_user),
-    tenant_id: str = Depends(get_current_user_tenant)
+    tenant_id: Optional[str] = Depends(get_current_user_tenant_optional)
 ):
     """
     Get list of documents for the current user's tenant.
+    Super admins without a tenant can view all documents (including those with NULL tenant_id).
+    Regular admins can only view their tenant's documents.
     
     Args:
         request: FastAPI request object
         offset: Pagination offset
         limit: Maximum number of documents to return
         current_user: Current authenticated admin user
-        tenant_id: Current user's tenant ID
+        tenant_id: Current user's tenant ID (None for super admins without tenant)
     
     Returns:
         List of document metadata

@@ -77,6 +77,7 @@ class AuthService:
                 
                 # Read role from user_metadata (defaults to 'user' if not set)
                 role = user_metadata.get('role', 'user')
+                print(f"DEBUG: auth_service.get_user - user_id: {user_id}, role from metadata: {role}, metadata: {user_metadata}")
                 
                 # Check if user can login (has active tenant) for non-super-admins
                 if role != 'super_admin' and not self.check_user_can_login(user_id):

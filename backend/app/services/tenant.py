@@ -407,20 +407,30 @@ class TenantService:
             
             response = query.order("created_at", desc=True).execute()
             
-            # Enrich with user email and full_name from auth
+            # Enrich with user email, full_name, and account creation date from auth
             users = []
             for row in (response.data or []):
                 try:
                     user_response = self.supabase.auth.admin.get_user_by_id(row["user_id"])
                     if user_response.user:
                         user_metadata = user_response.user.user_metadata or {}
+                        # Get account creation date from auth.users (when user account was created)
+                        # This is different from user_tenants.created_at (when added to tenant)
+                        # The Supabase user object has created_at as an ISO string
+                        account_created_at = None
+                        if hasattr(user_response.user, 'created_at'):
+                            account_created_at = user_response.user.created_at
+                        elif hasattr(user_response.user, 'user_metadata') and isinstance(user_response.user.user_metadata, dict):
+                            # Fallback: check if it's in metadata (unlikely but safe)
+                            pass
+                        
                         users.append({
                             "user_id": row["user_id"],
                             "email": user_response.user.email or "",
                             "full_name": user_metadata.get("full_name"),
                             "role": row["role"],
                             "is_active": row["is_active"],
-                            "created_at": row["created_at"],
+                            "created_at": account_created_at,  # Use account creation date from auth.users
                             "deactivated_at": row.get("deactivated_at")
                         })
                 except Exception:
@@ -487,19 +497,22 @@ class TenantService:
             if hasattr(response, 'error') and response.error:
                 return False
             
-            # Update user_metadata.role
+            # Update user_metadata.role (but preserve super_admin role)
             try:
                 # Get current user metadata to preserve other fields
                 user_response = self.supabase.auth.admin.get_user_by_id(user_id)
                 if user_response.user:
                     current_metadata = user_response.user.user_metadata or {}
-                    # Update role in metadata
-                    current_metadata['role'] = role
-                    # Update user metadata
-                    self.supabase.auth.admin.update_user_by_id(
-                        user_id,
-                        {"user_metadata": current_metadata}
-                    )
+                    current_role = current_metadata.get('role', 'user')
+                    # Only update role if user is not a super_admin
+                    # Super admins keep their super_admin role even when added to a tenant
+                    if current_role != 'super_admin':
+                        current_metadata['role'] = role
+                        # Update user metadata
+                        self.supabase.auth.admin.update_user_by_id(
+                            user_id,
+                            {"user_metadata": current_metadata}
+                        )
             except Exception as e:
                 print(f"Error updating user_metadata.role: {e}")
                 # Don't fail the whole operation if metadata update fails

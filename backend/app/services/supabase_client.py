@@ -23,12 +23,13 @@ class SupabaseClient:
         uploader_id: Optional[str],
         chunks_count: int,
         page_count: int,
-        tenant_id: str,
+        tenant_id: Optional[str],
         file_size: int = 0,
         status: str = "active",
         storage_path: Optional[str] = None,
     ) -> Any:
         """Insert a metadata row into the `documents` table.
+        tenant_id can be None for super admin uploads.
 
         Returns the Supabase response object (`.data`, `.error`) for callers to inspect.
         """
@@ -36,7 +37,6 @@ class SupabaseClient:
             "id": document_id,
             "filename": filename,
             "uploader_id": uploader_id,
-            "tenant_id": tenant_id,
             "uploaded_at": datetime.utcnow().isoformat(),
             "chunks_count": chunks_count,
             "page_count": page_count,
@@ -44,6 +44,10 @@ class SupabaseClient:
             "status": status,
             "storage_path": storage_path,
         }
+        
+        # Only include tenant_id if it's not None
+        if tenant_id is not None:
+            payload["tenant_id"] = tenant_id
 
         resp = self.supabase.table(self.table).insert(payload).execute()
 
@@ -79,9 +83,10 @@ class SupabaseClient:
 
         return resp
 
-    def list_documents(self, tenant_id: Optional[str] = None, offset: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+    def list_documents(self, tenant_id: Optional[str] = None, offset: int = 0, limit: int = 100, include_all: bool = False) -> List[Dict[str, Any]]:
         """List documents from the metadata table filtered by tenant_id. Returns a list of rows.
-        If tenant_id is None, returns all documents (for super admins)."""
+        If tenant_id is None and include_all=False, returns only documents with NULL tenant_id (for super admins viewing their own docs).
+        If tenant_id is None and include_all=True, returns ALL documents (for super admin analytics)."""
         # Supabase range is inclusive, so end = offset + limit - 1
         end = offset + max(0, limit - 1)
         query = (
@@ -89,9 +94,13 @@ class SupabaseClient:
             .select("id,filename,uploader_id,tenant_id,uploaded_at,chunks_count,page_count,file_size,status,storage_path")
         )
         
-        # Only filter by tenant_id if provided
+        # Filter by tenant_id if provided
         if tenant_id is not None:
             query = query.eq("tenant_id", tenant_id)
+        elif not include_all:
+            # Super admin viewing their own docs: filter for documents with NULL tenant_id only
+            query = query.is_("tenant_id", "null")
+        # If include_all=True and tenant_id=None, no filter - returns all documents
         
         resp = query.order("uploaded_at", desc=True).range(offset, end).execute()
 

@@ -12,17 +12,18 @@ class RAGService:
     def retrieve_context(
         self,
         query: str,
-        tenant_id: str,
+        tenant_id: Optional[str],
         top_k: int = None,
         score_threshold: float = None,
         document_id: Optional[str] = None
     ) -> List[Dict]:
         """
         Retrieve relevant context chunks for a query, filtered by tenant.
+        If tenant_id is None (super admin), searches only documents with NULL/missing tenant_id.
         
         Args:
             query: User query
-            tenant_id: Tenant ID to filter results
+            tenant_id: Tenant ID to filter results (None for super admin to search NULL tenant_id docs only)
             top_k: Number of chunks to retrieve
             score_threshold: Minimum similarity score
             document_id: Optional document filter
@@ -47,17 +48,18 @@ class RAGService:
     def generate_answer(
         self,
         query: str,
-        tenant_id: str,
+        tenant_id: Optional[str],
         context: Optional[List[Dict]] = None,
         stream: bool = False,
         model_id: Optional[str] = None
     ) -> str:
         """
         Generate answer using RAG pipeline, filtered by tenant.
+        If tenant_id is None (super admin), searches all documents.
         
         Args:
             query: User query
-            tenant_id: Tenant ID to filter results
+            tenant_id: Tenant ID to filter results (None for super admin to search all)
             context: Optional pre-retrieved context
             stream: Whether to stream the response
             model_id: Optional model ID to use
@@ -91,16 +93,17 @@ class RAGService:
     async def generate_answer_stream(
         self,
         query: str,
-        tenant_id: str,
+        tenant_id: Optional[str],
         context: Optional[List[Dict]] = None,
         model_id: Optional[str] = None
     ):
         """
         Generate streaming answer using RAG pipeline, filtered by tenant.
+        If tenant_id is None (super admin), searches all documents.
         
         Args:
             query: User query
-            tenant_id: Tenant ID to filter results
+            tenant_id: Tenant ID to filter results (None for super admin to search all)
             context: Optional pre-retrieved context
             model_id: Optional model ID to use
         
