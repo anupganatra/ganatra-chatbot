@@ -65,7 +65,7 @@ export async function updateSession(request: NextRequest) {
   } catch (error) {
     // Log but don't block the request - let it proceed
     // The client-side auth will handle verification
-    console.error('Middleware auth check timeout:', error)
+    console.error('Middleware auth check timeout: ', error)
   }
 
   return response
