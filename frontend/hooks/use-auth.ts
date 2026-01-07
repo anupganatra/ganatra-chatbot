@@ -13,6 +13,12 @@ export function useAuth() {
   const supabase = useMemo(() => createClient(), [])
   const initializedRef = useRef(false)
   const fetchingUserRef = useRef(false)
+  const userRef = useRef<User | null>(null) // Track user state for event handlers
+
+  // Keep userRef in sync with user state
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
 
   useEffect(() => {
     // Prevent double initialization in React StrictMode
@@ -35,11 +41,19 @@ export function useAuth() {
           setUser(backendUser)
           setLoading(false)
         } catch (error) {
-          // Backend rejected the user (likely deactivated), sign them out
-          console.error('User not allowed to log in:', error)
-          await supabase.auth.signOut()
-          setUser(null)
-          setLoading(false)
+          // Handle network/timeout errors differently
+          if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('Failed to fetch'))) {
+            console.error('Network error fetching user:', error)
+            // Don't sign out on network errors - keep existing user if available
+            // Set loading to false so UI doesn't hang
+            setLoading(false)
+          } else {
+            // Backend rejected the user (likely deactivated), sign them out
+            console.error('User not allowed to log in:', error)
+            await supabase.auth.signOut()
+            setUser(null)
+            setLoading(false)
+          }
         } finally {
           fetchingUserRef.current = false
         }
@@ -53,6 +67,14 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // Handle different event types appropriately
+        if (event === 'TOKEN_REFRESHED' && userRef.current) {
+          // Token refreshed but we already have user data
+          // Only refetch if we want to ensure data is fresh, but don't block UI
+          // For now, skip refetch to avoid unnecessary calls and potential hangs
+          return
+        }
+
         if (session?.user) {
           // Prevent multiple simultaneous fetches
           if (fetchingUserRef.current) return
@@ -60,21 +82,28 @@ export function useAuth() {
           
           try {
             // Verify with backend that user is allowed to log in (not deactivated)
-            // getCurrentUser() already has deduplication, but this prevents multiple listeners from trying
             const backendUser = await getCurrentUser()
             // User is allowed, use backend user data (which has verified role)
             setUser(backendUser)
             setLoading(false)
           } catch (error) {
-            // Backend rejected the user (likely deactivated), sign them out
-            console.error('User not allowed to log in:', error)
-            await supabase.auth.signOut()
-            setUser(null)
-            setLoading(false)
+            // Handle network/timeout errors differently
+            if (error instanceof Error && (error.message.includes('timeout') || error.message.includes('Failed to fetch'))) {
+              console.error('Network error fetching user after auth change:', error)
+              // Don't sign out on network errors - keep existing user if available
+              setLoading(false)
+            } else {
+              // Backend rejected the user (likely deactivated), sign them out
+              console.error('User not allowed to log in:', error)
+              await supabase.auth.signOut()
+              setUser(null)
+              setLoading(false)
+            }
           } finally {
             fetchingUserRef.current = false
           }
         } else {
+          // No session - user signed out
           setUser(null)
           setLoading(false)
           fetchingUserRef.current = false

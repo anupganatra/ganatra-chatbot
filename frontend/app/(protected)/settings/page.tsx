@@ -15,9 +15,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { ArrowLeft, Settings, Shield, Check, User, Palette, Lock, Cookie, Database } from "lucide-react"
+import { ArrowLeft, Settings, Shield, Check, User, Palette, Lock, Cookie, Database, Eye, EyeOff } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
-type SettingsTab = "general" | "privacy"
+type SettingsTab = "general" | "privacy" | "security"
 
 export default function SettingsPage() {
   const { user, loading, updateUser } = useAuth()
@@ -32,6 +33,15 @@ export default function SettingsPage() {
   })
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  
+  // Password change state
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
 
   useEffect(() => {
     if (user?.fullName) {
@@ -62,6 +72,44 @@ export default function SettingsPage() {
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handlePasswordChange = async () => {
+    setPasswordError(null)
+    setPasswordSuccess(false)
+
+    // Validate password length
+    if (newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters")
+      return
+    }
+
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Passwords do not match")
+      return
+    }
+
+    setChangingPassword(true)
+
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      })
+
+      if (error) throw error
+
+      // Success - clear form and show success message
+      setNewPassword("")
+      setConfirmPassword("")
+      setPasswordSuccess(true)
+      setTimeout(() => setPasswordSuccess(false), 3000)
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : "Failed to change password")
+    } finally {
+      setChangingPassword(false)
+    }
   }
 
   if (loading) {
@@ -127,6 +175,17 @@ export default function SettingsPage() {
               >
                 <Shield className="h-4 w-4" />
                 Privacy
+              </button>
+              <button
+                onClick={() => setActiveTab("security")}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === "security"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <Lock className="h-4 w-4" />
+                Security
               </button>
             </nav>
           </aside>
@@ -273,6 +332,118 @@ export default function SettingsPage() {
                   </CardContent>
                 </Card>
               </div>
+            )}
+
+            {activeTab === "security" && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                      <Lock className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">Change Password</CardTitle>
+                      <CardDescription className="text-xs">Update your account password</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <div className="relative max-w-md">
+                      <Input
+                        id="newPassword"
+                        type={showNewPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => {
+                          setNewPassword(e.target.value)
+                          setPasswordError(null)
+                        }}
+                        placeholder="Enter your new password"
+                        className="pr-10"
+                        disabled={changingPassword}
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        tabIndex={-1}
+                        disabled={changingPassword}
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">Must be at least 6 characters</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <div className="relative max-w-md">
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value)
+                          setPasswordError(null)
+                        }}
+                        placeholder="Confirm your new password"
+                        className="pr-10"
+                        disabled={changingPassword}
+                        minLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        tabIndex={-1}
+                        disabled={changingPassword}
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {passwordError && (
+                    <p className="text-sm text-destructive">{passwordError}</p>
+                  )}
+
+                  {passwordSuccess && (
+                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <Check className="h-4 w-4" />
+                      <span>Password changed successfully</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <Button 
+                      onClick={handlePasswordChange} 
+                      disabled={changingPassword || !newPassword || !confirmPassword} 
+                      size="sm"
+                    >
+                      {changingPassword ? (
+                        "Changing password..."
+                      ) : passwordSuccess ? (
+                        <>
+                          <Check className="mr-2 h-4 w-4" />
+                          Password changed
+                        </>
+                      ) : (
+                        "Change password"
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>

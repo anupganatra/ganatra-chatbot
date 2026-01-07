@@ -28,22 +28,37 @@ export async function getCurrentUser(): Promise<User> {
     return currentUserPromise
   }
 
-  // Create new request
+  // Create new request with timeout
   currentUserPromise = (async () => {
     try {
       const headers = await getAuthHeaders()
       
-      const response = await fetch(`${BACKEND_URL}/auth/me`, {
-        method: 'GET',
-        headers,
-      })
+      // Add timeout to prevent hanging
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/auth/me`, {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+        })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.detail || 'Failed to get current user')
+        clearTimeout(timeoutId)
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.detail || 'Failed to get current user')
+        }
+
+        return response.json()
+      } catch (error) {
+        clearTimeout(timeoutId)
+        if (error instanceof Error && error.name === 'AbortError') {
+          throw new Error('Request timeout: Backend is not responding')
+        }
+        throw error
       }
-
-      return response.json()
     } finally {
       // Clear the promise after request completes (success or failure)
       currentUserPromise = null

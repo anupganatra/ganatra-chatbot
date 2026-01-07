@@ -19,7 +19,7 @@ import { ReportBugDialog } from "./help/report-bug-dialog"
 
 export function SidebarCollapsedToolbar() {
   const { state, isMobile, openMobile } = useSidebar()
-  const { user, signOut } = useAuth()
+  const { user, signOut, loading } = useAuth()
   const router = useRouter()
   const [reportBugOpen, setReportBugOpen] = useState(false)
 
@@ -35,7 +35,7 @@ export function SidebarCollapsedToolbar() {
   if (!isVisible) return null
 
   const userInitial = user?.email?.charAt(0).toUpperCase() || "A"
-  const userEmail = user?.email || "demo@example.com"
+  const userEmail = user?.email || (loading ? undefined : "demo@example.com")
 
   const handleSignOut = async () => {
     await signOut()
@@ -94,7 +94,9 @@ export function SidebarCollapsedToolbar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent side="right" align="end" className="w-56 mb-2">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium truncate">{userEmail}</p>
+              <p className="text-sm font-medium truncate">
+                {loading ? "Loading..." : (userEmail || "Not logged in")}
+              </p>
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSettings}>

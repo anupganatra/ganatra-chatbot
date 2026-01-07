@@ -229,7 +229,7 @@ function ChatHistoryItem({
 }
 
 export function AppSidebar() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const {
@@ -290,7 +290,7 @@ export function AppSidebar() {
 
   const userInitial = user?.email?.charAt(0).toUpperCase() || "A"
   const userName = user?.fullName || user?.email?.split("@")[0] || "User"
-  const userEmail = user?.email || "demo@example.com"
+  const userEmail = user?.email || (loading ? undefined : "demo@example.com")
 
   const handleAdmin = () => {
     router.push("/admin")
@@ -390,7 +390,9 @@ export function AppSidebar() {
                 </div>
                 <div className="flex flex-1 flex-col items-start text-left text-sm">
                   <span className="font-medium truncate">{userName}</span>
-                  <span className="text-xs text-muted-foreground truncate">{userEmail}</span>
+                  <span className="text-xs text-muted-foreground truncate">
+                    {loading ? "Loading..." : (userEmail || "Not logged in")}
+                  </span>
                 </div>
                 <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
               </SidebarMenuButton>
@@ -399,7 +401,9 @@ export function AppSidebar() {
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium">{userName}</p>
-                  <p className="text-xs text-muted-foreground">{userEmail}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {loading ? "Loading..." : (userEmail || "Not logged in")}
+                  </p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
