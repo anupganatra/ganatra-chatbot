@@ -27,7 +27,21 @@ export function useAuth() {
 
     // Use getSession for initial load (uses cached data, doesn't hit server)
     const initializeAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      let session
+      try {
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Session timeout')), 8000) // 8 second timeout
+        )
+        const result = await Promise.race([sessionPromise, timeoutPromise])
+        session = (result as { data: { session: any } }).data.session
+      } catch (error) {
+        // Session check timed out - treat as no session
+        console.error('Session check timeout:', error)
+        setUser(null)
+        setLoading(false)
+        return
+      }
       
       if (session?.user) {
         // Prevent multiple simultaneous fetches

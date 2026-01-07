@@ -7,7 +7,21 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:800
 async function getAuthHeaders(): Promise<HeadersInit> {
   const { createClient } = await import('@/lib/supabase/client')
   const supabase = createClient()
-  const { data: { session } } = await supabase.auth.getSession()
+  
+  // Add timeout to prevent hanging on getSession (especially after idle time when token refresh happens)
+  let session
+  try {
+    const sessionPromise = supabase.auth.getSession()
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('Session timeout')), 8000) // 8 second timeout
+    )
+    
+    const result = await Promise.race([sessionPromise, timeoutPromise])
+    session = (result as { data: { session: any } }).data.session
+  } catch (error) {
+    // If getSession times out, throw a clear error
+    throw new Error('Failed to get session: Authentication timeout. Please refresh the page.')
+  }
   
   if (!session?.access_token) {
     throw new Error('Not authenticated')
