@@ -54,7 +54,19 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  await supabase.auth.getUser()
+  // Add timeout to prevent middleware from hanging
+  try {
+    await Promise.race([
+      supabase.auth.getUser(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Middleware timeout')), 5000)
+      )
+    ])
+  } catch (error) {
+    // Log but don't block the request - let it proceed
+    // The client-side auth will handle verification
+    console.error('Middleware auth check timeout:', error)
+  }
 
   return response
 }
