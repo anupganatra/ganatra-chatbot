@@ -142,14 +142,22 @@ async def chat_stream(
                 return
             
             # Stream response
-            async for chunk in rag_service.generate_answer_stream(
-                query=chat_request.message,
-                tenant_id=tenant_id,
-                context=context,
-                model_id=model_id
-            ):
-                yield f"data: {json.dumps({'content': chunk, 'done': False})}\n\n"
-            
+            try:
+                async for chunk in rag_service.generate_answer_stream(
+                    query=chat_request.message,
+                    tenant_id=tenant_id,
+                    context=context,
+                    model_id=model_id
+                ):
+                    yield f"data: {json.dumps({'content': chunk, 'done': False})}\n\n"
+            except Exception as e:
+                yield "data: {0}\n\n".format(json.dumps({
+                    "content": f"Sorry, something went wrong while generating a response: {str(e)}",
+                    "done": True,
+                    "error": True
+                }))
+                return
+
             yield f"data: {json.dumps({'content': '', 'done': True})}\n\n"
         
         return StreamingResponse(
