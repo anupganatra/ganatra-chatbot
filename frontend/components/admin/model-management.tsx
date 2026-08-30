@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Loader2, RefreshCw } from "lucide-react"
 import { getOpenRouterModels } from "@/lib/api/backend"
+import { cn } from "@/lib/utils"
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'
 
@@ -332,14 +333,26 @@ export function ModelManagement() {
     }
   }
 
+  // A DB row's liveness against OpenRouter's current free-model catalog.
+  // 'unknown' when the live catalog couldn't be fetched, so we don't flag
+  // every OpenRouter model as dead over a transient error.
+  type Liveness = 'live' | 'stale' | 'unknown'
+
   // Merge and sort all models (database + OpenRouter) by provider
   const getAllModelsSorted = () => {
     // Get set of model_ids that are already in the database
     const databaseModelIds = new Set(models.map(m => m.model_id))
-    
+    const liveOpenRouterIds = new Set(openRouterModels.map(orm => orm.id))
+
+    const getLiveness = (provider: Model['provider'], modelId: string): Liveness => {
+      if (provider !== 'openrouter') return 'live' // not subject to OpenRouter's catalog churn
+      if (openRouterError) return 'unknown'
+      return liveOpenRouterIds.has(modelId) ? 'live' : 'stale'
+    }
+
     // Convert OpenRouter models to the same format as database models
     // Only include OpenRouter models that are NOT already in the database
-    const openRouterModelsFormatted: (Model & { isFromOpenRouter: boolean; openRouterModel?: OpenRouterModel })[] = openRouterModels
+    const openRouterModelsFormatted: (Model & { isFromOpenRouter: boolean; openRouterModel?: OpenRouterModel; liveness: Liveness })[] = openRouterModels
       .filter(orm => !databaseModelIds.has(orm.id))
       .map(orm => ({
         id: orm.id,
@@ -350,18 +363,30 @@ export function ModelManagement() {
         is_free: true,
         is_active: false, // OpenRouter models not in database are not enabled
         isFromOpenRouter: true,
-        openRouterModel: orm
+        openRouterModel: orm,
+        liveness: 'live' as const, // came straight from the live catalog fetch
       }))
 
     // Merge database models and OpenRouter models (excluding duplicates)
     // Clean model names for database models too
     const allModels = [
-      ...models.map(m => ({ ...m, name: cleanModelName(m.name), isFromOpenRouter: false as const })),
+      ...models.map(m => ({
+        ...m,
+        name: cleanModelName(m.name),
+        isFromOpenRouter: false as const,
+        liveness: getLiveness(m.provider, m.model_id),
+      })),
       ...openRouterModelsFormatted
     ]
 
-    // Sort by provider name, then by model name
+    // Stale (retired-by-OpenRouter) models sink to the bottom; within each
+    // liveness bucket, sort by provider name, then by model name.
     return allModels.sort((a, b) => {
+      if (a.liveness !== b.liveness) {
+        if (a.liveness === 'stale') return 1
+        if (b.liveness === 'stale') return -1
+      }
+
       const aProvider = extractProviderName(a.model_id, a.provider)
       const bProvider = extractProviderName(b.model_id, b.provider)
       if (aProvider !== bProvider) {
@@ -433,6 +458,7 @@ export function ModelManagement() {
                   <th className="text-left p-3 font-semibold text-sm">Model Name</th>
                   <th className="text-left p-3 font-semibold text-sm">Provider</th>
                   <th className="text-left p-3 font-semibold text-sm">Free</th>
+                  <th className="text-left p-3 font-semibold text-sm">Live</th>
                   <th className="text-right p-3 font-semibold text-sm">Status</th>
                 </tr>
               </thead>
@@ -440,9 +466,15 @@ export function ModelManagement() {
                 {sortedAllModels.map((model) => {
                   const providerName = extractProviderName(model.model_id, model.provider)
                   const isToggling = model.isFromOpenRouter ? togglingModels.has(model.model_id) : false
-                  
+
                   return (
-                    <tr key={model.id} className="border-b hover:bg-muted/50">
+                    <tr
+                      key={model.id}
+                      className={cn(
+                        'border-b hover:bg-muted/50',
+                        model.liveness === 'stale' && 'opacity-60',
+                      )}
+                    >
                       <td className="p-3">
                         <div className="font-medium">{model.name}</div>
                       </td>
@@ -451,6 +483,29 @@ export function ModelManagement() {
                       </td>
                       <td className="p-3">
                         <div className="text-sm">{model.is_free ? 'Yes' : 'No'}</div>
+                      </td>
+                      <td className="p-3">
+                        {model.liveness === 'live' && (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                            <span className="size-1.5 rounded-full bg-emerald-500" />
+                            Live
+                          </span>
+                        )}
+                        {model.liveness === 'stale' && (
+                          <span
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive"
+                            title="OpenRouter no longer serves this model for free — requests will fail."
+                          >
+                            <span className="size-1.5 rounded-full bg-destructive" />
+                            Unavailable
+                          </span>
+                        )}
+                        {model.liveness === 'unknown' && (
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                            <span className="size-1.5 rounded-full bg-muted-foreground" />
+                            Unknown
+                          </span>
+                        )}
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-end">
