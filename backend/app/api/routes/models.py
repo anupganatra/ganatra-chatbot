@@ -1,6 +1,6 @@
 """Models API routes."""
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from app.models.user import User
 from app.api.dependencies import get_current_user, get_current_admin_user
 from app.services.supabase_client import supabase_client
@@ -11,6 +11,57 @@ import httpx
 router = APIRouter(prefix="/models", tags=["models"])
 
 
+async def _fetch_live_openrouter_free_models() -> Optional[List[Dict[str, Any]]]:
+    """
+    Fetch the current free-tier model catalog directly from OpenRouter.
+
+    Returns None (instead of raising) when the catalog can't be fetched, so
+    callers can fail open rather than hiding every OpenRouter model because
+    of a transient network/API issue.
+    """
+    if not settings.OPENROUTER_API_KEY:
+        return None
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                f"{settings.OPENROUTER_BASE_URL}/models",
+                headers={
+                    "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+    except Exception as e:
+        print(f"Error fetching live OpenRouter model catalog: {e}")
+        return None
+
+    free_models = []
+    for model in data.get("data", []):
+        pricing = model.get("pricing")
+
+        if pricing is None:
+            prompt, completion = 0.0, 0.0
+        else:
+            try:
+                prompt = float(pricing.get("prompt", "0") or 0) if isinstance(pricing, dict) else 0.0
+                completion = float(pricing.get("completion", "0") or 0) if isinstance(pricing, dict) else 0.0
+            except (ValueError, TypeError):
+                continue
+
+        if prompt == 0.0 and completion == 0.0:
+            model_name = model.get("name", "").replace(" (free)", "").replace("(free)", "").strip()
+            free_models.append({
+                "id": model.get("id", ""),
+                "name": model_name,
+                "description": model.get("description", ""),
+                "pricing": pricing
+            })
+
+    return free_models
+
+
 @router.get("")
 @limiter.limit("30/minute")
 async def get_available_models(
@@ -18,21 +69,42 @@ async def get_available_models(
     current_user: User = Depends(get_current_user)
 ) -> List[Dict[str, Any]]:
     """
-    Get list of available models (active only).
-    
+    Get list of available models (active only), cross-checked against
+    OpenRouter's live free-model catalog so a stale/retired free model
+    doesn't get offered to users just because the DB row wasn't updated.
+
     Args:
         request: FastAPI request object
         current_user: Current authenticated user
-    
+
     Returns:
         List of available models
     """
     try:
         # Query Supabase for active models
         response = supabase_client.supabase.table("available_models").select("*").eq("is_active", True).order("name").execute()
-        
+
         models = response.data if hasattr(response, 'data') else []
-        
+
+        # Re-verify OpenRouter models against the live catalog. Gemini (and any
+        # future non-OpenRouter provider) isn't subject to OpenRouter's
+        # free-tier churn, so it's left untouched.
+        live_free_models = await _fetch_live_openrouter_free_models()
+        live_free_ids = (
+            {m["id"] for m in live_free_models}
+            if live_free_models is not None
+            else None
+        )
+
+        def is_still_offerable(model: Dict[str, Any]) -> bool:
+            if model.get("provider") != "openrouter":
+                return True
+            if live_free_ids is None:
+                # Couldn't reach OpenRouter's catalog - fail open rather than
+                # hiding every OpenRouter model over a transient error.
+                return True
+            return model["model_id"] in live_free_ids
+
         # Format response
         return [
             {
@@ -44,8 +116,9 @@ async def get_available_models(
                 "is_free": model.get("is_free", False)
             }
             for model in models
+            if is_still_offerable(model)
         ]
-    
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -62,93 +135,29 @@ async def get_openrouter_models(
     """
     Fetch available models from OpenRouter API (admin only).
     Returns only free models.
-    
+
     Args:
         request: FastAPI request object
         current_user: Current authenticated admin user
-    
+
     Returns:
         List of free models from OpenRouter
     """
-    try:
-        if not settings.OPENROUTER_API_KEY:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="OpenRouter API key is not configured"
-            )
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{settings.OPENROUTER_BASE_URL}/models",
-                headers={
-                    "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json"
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-            # Debug: Log response structure if no data
-            if "data" not in data:
-                print(f"OpenRouter API response structure: {list(data.keys())}")
-            
-            # Filter for free models
-            free_models = []
-            if "data" in data:
-                for model in data["data"]:
-                    # Check if model is free
-                    # OpenRouter marks free models with pricing.prompt = 0 or null
-                    pricing = model.get("pricing")
-                    
-                    # If pricing is None/null, it's free
-                    if pricing is None:
-                        model_name = model.get("name", "")
-                        # Remove "(free)" from model name if present
-                        model_name = model_name.replace(" (free)", "").replace("(free)", "").strip()
-                        free_models.append({
-                            "id": model.get("id", ""),
-                            "name": model_name,
-                            "description": model.get("description", ""),
-                            "pricing": None
-                        })
-                        continue
-                    
-                    # Check prompt and completion prices
-                    prompt_price = pricing.get("prompt", "0") if isinstance(pricing, dict) else "0"
-                    completion_price = pricing.get("completion", "0") if isinstance(pricing, dict) else "0"
-                    
-                    # Convert to float for comparison
-                    try:
-                        prompt = float(prompt_price) if prompt_price else 0.0
-                        completion = float(completion_price) if completion_price else 0.0
-                        
-                        # Model is free if both prompt and completion prices are 0
-                        if prompt == 0.0 and completion == 0.0:
-                            model_name = model.get("name", "")
-                            # Remove "(free)" from model name if present
-                            model_name = model_name.replace(" (free)", "").replace("(free)", "").strip()
-                            free_models.append({
-                                "id": model.get("id", ""),
-                                "name": model_name,
-                                "description": model.get("description", ""),
-                                "pricing": pricing
-                            })
-                    except (ValueError, TypeError):
-                        # If pricing is unclear, skip
-                        continue
-            
-            return free_models
-    
-    except httpx.HTTPStatusError as e:
+    if not settings.OPENROUTER_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"OpenRouter API error: {e.response.text}"
+            detail="OpenRouter API key is not configured"
         )
-    except Exception as e:
+
+    free_models = await _fetch_live_openrouter_free_models()
+
+    if free_models is None:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error fetching OpenRouter models: {str(e)}"
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Unable to reach OpenRouter to fetch the model catalog"
         )
+
+    return free_models
 
 
 @router.post("/user/preference")
