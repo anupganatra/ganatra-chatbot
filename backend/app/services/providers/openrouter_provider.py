@@ -86,8 +86,10 @@ class OpenRouterProvider(BaseLLMProvider):
                         "stream": True
                     }
                 ) as response:
-                    response.raise_for_status()
-                    
+                    if response.is_error:
+                        error_text = (await response.aread()).decode("utf-8", errors="replace")
+                        raise ValueError(f"OpenRouter API error: {error_text}")
+
                     async for line in response.aiter_lines():
                         if not line.strip():
                             continue
@@ -108,9 +110,8 @@ class OpenRouterProvider(BaseLLMProvider):
                             except json.JSONDecodeError:
                                 continue
         
-        except httpx.HTTPStatusError as e:
-            error_text = await e.response.aread() if hasattr(e.response, 'aread') else str(e.response.text)
-            raise ValueError(f"OpenRouter API error: {error_text}")
+        except ValueError:
+            raise
         except Exception as e:
             raise ValueError(f"Error generating stream: {str(e)}")
     
