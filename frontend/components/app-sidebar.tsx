@@ -45,6 +45,7 @@ import {
   Pencil,
   MoreHorizontal,
   HelpCircle,
+  Loader2,
 } from "lucide-react"
 import { SidebarToggleButton } from "./sidebar-toggle-button"
 import { Input } from "@/components/ui/input"
@@ -296,9 +297,16 @@ export function AppSidebar() {
     router.push("/admin")
   }
 
+  const [signingOut, setSigningOut] = useState(false)
+
   const handleSignOut = async () => {
-    await signOut()
-    router.push("/login")
+    setSigningOut(true)
+    try {
+      await signOut()
+      router.push("/login")
+    } finally {
+      setSigningOut(false)
+    }
   }
 
   const handleNewChat = () => {
@@ -422,9 +430,17 @@ export function AppSidebar() {
                 <HelpCircle className="mr-2 h-4 w-4" />
                 <span>Help</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>Log out</span>
+              <DropdownMenuItem
+                onClick={handleSignOut}
+                disabled={signingOut}
+                className="cursor-pointer"
+              >
+                {signingOut ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <LogOut className="mr-2 h-4 w-4" />
+                )}
+                <span>{signingOut ? "Logging out..." : "Log out"}</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

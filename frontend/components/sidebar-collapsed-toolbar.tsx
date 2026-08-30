@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, MessageSquare, Settings, LogOut, ShieldCheck, HelpCircle } from "lucide-react"
+import { Plus, MessageSquare, Settings, LogOut, ShieldCheck, HelpCircle, Loader2 } from "lucide-react"
 import { useSidebar } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -37,8 +37,15 @@ export function SidebarCollapsedToolbar() {
   const userInitial = user?.email?.charAt(0).toUpperCase() || "A"
   const userEmail = user?.email || (loading ? undefined : "demo@example.com")
 
+  const [signingOut, setSigningOut] = useState(false)
+
   const handleSignOut = async () => {
-    await signOut()
+    setSigningOut(true)
+    try {
+      await signOut()
+    } finally {
+      setSigningOut(false)
+    }
   }
 
   const handleSettings = () => {
@@ -114,9 +121,13 @@ export function SidebarCollapsedToolbar() {
               <HelpCircle className="mr-2 h-4 w-4" />
               Help
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Log out
+            <DropdownMenuItem onClick={handleSignOut} disabled={signingOut}>
+              {signingOut ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="mr-2 h-4 w-4" />
+              )}
+              {signingOut ? "Logging out..." : "Log out"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
