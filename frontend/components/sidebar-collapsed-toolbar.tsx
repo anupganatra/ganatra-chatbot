@@ -22,6 +22,7 @@ export function SidebarCollapsedToolbar() {
   const { user, signOut, loading } = useAuth()
   const router = useRouter()
   const [reportBugOpen, setReportBugOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
 
   // Admin status is now set correctly in user.role by useAuth hook
   // - super_admin: from user_metadata (instant)
@@ -36,8 +37,6 @@ export function SidebarCollapsedToolbar() {
 
   const userInitial = user?.email?.charAt(0).toUpperCase() || "A"
   const userEmail = user?.email || (loading ? undefined : "demo@example.com")
-
-  const [signingOut, setSigningOut] = useState(false)
 
   const handleSignOut = async () => {
     setSigningOut(true)
